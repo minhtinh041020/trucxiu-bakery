@@ -24,6 +24,16 @@ import {
 } from '@/lib/dataService';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
+export type AdminTab =
+  | 'dashboard'
+  | 'orders-online'
+  | 'orders-event'
+  | 'products'
+  | 'categories'
+  | 'finance'
+  | 'inventory'
+  | 'settings';
+
 export default function AdminPage() {
   // Auth state
   const [isMounted, setIsMounted] = useState<boolean>(false);
@@ -32,16 +42,7 @@ export default function AdminPage() {
   const [pinError, setPinError] = useState<string>('');
 
   // Main navigation tab
-  const [currentTab, setCurrentTab] = useState<
-    | 'dashboard'
-    | 'orders-online'
-    | 'orders-event'
-    | 'products'
-    | 'categories'
-    | 'finance'
-    | 'inventory'
-    | 'settings'
-  >('dashboard');
+  const [currentTab, setCurrentTab] = useState<AdminTab>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
   // App datasets
@@ -106,8 +107,9 @@ export default function AdminPage() {
   // Settings form inputs
   const [settingForm, setSettingForm] = useState<StoreSettings>(initialSettings);
 
-  // Toast
+  // Toast & Notifications
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
 
   const showToast = (text: string) => {
     setToastMsg(text);
@@ -133,7 +135,7 @@ export default function AdminPage() {
       setIsAuthenticated(true);
       setPinError('');
     } else {
-      setPinError('Mã PIN không đúng, vui lòng thử lại! (Mặc định: 123456)');
+      setPinError('Mã PIN không đúng, vui lòng thử lại!');
     }
   };
 
@@ -554,6 +556,283 @@ export default function AdminPage() {
   const eventPendingCount = orders.filter((o) => o.type === 'bulk' && o.status === 'pending').length;
   const lowStockIngredients = ingredients.filter((ing) => ing.stockQty <= ing.minStockQty);
 
+  // Tổng hợp thông báo hệ thống góc phải
+  const notifications = [
+    ...orders
+      .filter((o) => o.type === 'regular' && o.status === 'pending')
+      .map((o) => ({
+        id: `order-${o.id}`,
+        title: `Đơn hàng Online mới: #${o.id}`,
+        desc: `${o.customer.name} · ${o.items.length} món · ${formatMoney(o.total)}`,
+        time: o.time,
+        type: 'order' as const,
+        tab: 'orders-online' as AdminTab,
+        icon: 'ph-shopping-bag',
+        color: 'text-[#c77f8e] bg-[#f4dfe1]',
+      })),
+    ...orders
+      .filter((o) => o.type === 'bulk' && o.status === 'pending')
+      .map((o) => ({
+        id: `event-${o.id}`,
+        title: `Đơn tiệc sự kiện mới: #${o.id}`,
+        desc: `${o.customer.name} (${o.customer.phone}) đang chờ gọi tư vấn`,
+        time: o.time,
+        type: 'event' as const,
+        tab: 'orders-event' as AdminTab,
+        icon: 'ph-crown',
+        color: 'text-purple-600 bg-purple-100',
+      })),
+    ...lowStockIngredients.map((ing) => ({
+      id: `ing-${ing.id}`,
+      title: `Kho sắp hết: ${ing.name}`,
+      desc: `Chỉ còn ${ing.stockQty} ${ing.unit} (Ngưỡng an toàn: ${ing.minStockQty} ${ing.unit})`,
+      time: 'Cần nhập thêm',
+      type: 'inventory' as const,
+      tab: 'inventory' as AdminTab,
+      icon: 'ph-warning-circle',
+      color: 'text-amber-600 bg-amber-100',
+    })),
+    ...(finReport.netProfit < 0
+      ? [
+          {
+            id: 'finance-loss-alert',
+            title: 'Cảnh báo lợi nhuận âm',
+            desc: `Lợi nhuận ròng hiện tại đang âm: ${formatMoney(finReport.netProfit)}. Hãy xem lại chi phí vận hành.`,
+            time: 'Hôm nay',
+            type: 'finance' as const,
+            tab: 'finance' as AdminTab,
+            icon: 'ph-trend-down',
+            color: 'text-red-600 bg-red-100',
+          },
+        ]
+      : []),
+  ];
+
+  // Helper xuất Excel (CSV chuẩn UTF-8 BOM hiển thị tiếng Việt hoàn hảo trong Excel)
+  const exportToExcelCSV = (filename: string, headers: string[], rows: (string | number)[][]) => {
+    const BOM = '\uFEFF';
+    const csvContent = [
+      headers.map((h) => `"${String(h).replace(/"/g, '""')}"`).join(','),
+      ...rows.map((row) =>
+        row.map((val) => `"${String(val ?? '').replace(/"/g, '""')}"`).join(',')
+      ),
+    ].join('\r\n');
+
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast(`Đã xuất file Excel: ${filename}.csv`);
+  };
+
+  // 1. Xuất Excel Báo cáo Tài chính P&L & Sổ Chi Phí
+  const handleExportFinanceExcel = () => {
+    const headers = ['Chỉ tiêu tài chính / Mục chi', 'Số tiền (VNĐ)', 'Tỉ lệ / Danh mục / Ghi chú'];
+    const rows: (string | number)[][] = [
+      ['--- BÁO CÁO KẾT QUẢ KINH DOANH (P&L STATEMENT) ---', '', ''],
+      ['1. Doanh thu thuần', finReport.totalRevenue, 'Từ các đơn giao thành công'],
+      ['2. Giá vốn hàng bán (COGS)', -finReport.totalCOGS, 'Chi phí nguyên vật liệu cốt bánh'],
+      ['3. Lợi nhuận gộp', finReport.grossProfit, `Tỉ suất biên lãi gộp: ${finReport.grossMargin}%`],
+      ['4. Tổng chi phí vận hành', -finReport.totalExpenses, 'Bao bì, điện nước, lương, mặt bằng'],
+      ['5. LỢI NHUẬN RÒNG (NET PROFIT)', finReport.netProfit, `Tỉ suất lợi nhuận ròng: ${finReport.netMargin}%`],
+      ['6. Tổng giá trị tồn kho nguyên liệu', finReport.inventoryValue, 'Vốn hàng tồn trữ trong kho'],
+      ['', '', ''],
+      ['--- CHI TIẾT SỔ QUỸ CHI TIÊU VẬN HÀNH ---', '', ''],
+      ['Khoản chi', 'Số tiền (VNĐ)', 'Danh mục & Ngày ghi'],
+      ...expenses.map((exp) => [
+        exp.description,
+        -exp.amount,
+        `${
+          exp.category === 'ingredient'
+            ? 'Nguyên liệu'
+            : exp.category === 'packaging'
+            ? 'Hộp bao bì'
+            : exp.category === 'utilities'
+            ? 'Điện / Nước'
+            : exp.category === 'salary'
+            ? 'Lương nhân sự'
+            : exp.category === 'rent'
+            ? 'Mặt bằng'
+            : exp.category === 'marketing'
+            ? 'Quảng cáo'
+            : 'Khác'
+        } (Ngày: ${exp.date})`,
+      ]),
+    ];
+    exportToExcelCSV('Bao_Cao_Tai_Chinh_PL_TrucXiu', headers, rows);
+  };
+
+  // 2. Xuất Excel Biên Lợi Nhuận Từng Loại Bánh
+  const handleExportProductMarginExcel = () => {
+    const headers = [
+      'Mã bánh',
+      'Tên bánh',
+      'Nhóm danh mục',
+      'Giá bán (VNĐ)',
+      'Giá vốn (COGS) (VNĐ)',
+      'Tiền lời/cái (VNĐ)',
+      'Biên lãi gộp (%)',
+      'Trạng thái bán',
+      'Đánh giá kế toán',
+    ];
+    const rows = products.map((p) => {
+      const cost = p.costPrice || Math.round(p.price * 0.38);
+      const profit = p.price - cost;
+      const margin = ((profit / p.price) * 100).toFixed(1);
+      const evalText =
+        Number(margin) >= 65
+          ? 'Siêu lợi nhuận'
+          : Number(margin) >= 55
+          ? 'Tỉ suất sinh lời tốt'
+          : 'Chi phí cốt bánh cao';
+      return [
+        p.id,
+        p.name,
+        categories.find((c) => c.id === p.category)?.name || p.category,
+        p.price,
+        cost,
+        profit,
+        `${margin}%`,
+        p.inStock ? 'Đang mở bán' : 'Tạm hết',
+        evalText,
+      ];
+    });
+    exportToExcelCSV('Bao_Cao_Bien_Loi_Nhuan_Banh', headers, rows);
+  };
+
+  // 3. Xuất Excel Kho & Tồn Kho Nguyên Liệu
+  const handleExportInventoryExcel = () => {
+    const headers = [
+      'Mã nguyên liệu',
+      'Tên nguyên vật liệu',
+      'Nhà cung cấp',
+      'Đơn vị tính',
+      'Đơn giá nhập (VNĐ)',
+      'Tồn kho hiện tại',
+      'Ngưỡng tối thiểu',
+      'Tổng giá trị tồn (VNĐ)',
+      'Tình trạng kho',
+    ];
+    const rows = ingredients.map((ing) => {
+      const isLow = ing.stockQty <= ing.minStockQty;
+      return [
+        ing.id,
+        ing.name,
+        ing.supplier || 'Chợ đầu mối',
+        ing.unit,
+        ing.unitPrice,
+        ing.stockQty,
+        ing.minStockQty,
+        ing.stockQty * ing.unitPrice,
+        isLow ? 'CẢNH BÁO SẮP HẾT' : 'Đầy đủ hàng',
+      ];
+    });
+    exportToExcelCSV('Bao_Cao_Ton_Kho_Nguyen_Lieu', headers, rows);
+  };
+
+  // 4. Xuất Excel Đơn Hàng Online
+  const handleExportOrdersOnlineExcel = () => {
+    const headers = [
+      'Mã đơn',
+      'Thời gian đặt',
+      'Tên khách hàng',
+      'Số điện thoại',
+      'Địa chỉ giao hàng',
+      'Trạng thái đơn',
+      'Danh sách bánh đặt',
+      'Tổng tiền (VNĐ)',
+      'Ghi chú',
+    ];
+    const onlineOrders = orders.filter((o) => o.type === 'regular');
+    const statusMap: Record<string, string> = {
+      pending: 'Chờ duyệt',
+      processing: 'Đang làm bánh',
+      shipping: 'Đang giao hàng',
+      completed: 'Đã hoàn tất',
+      cancelled: 'Đã hủy',
+    };
+    const rows = onlineOrders.map((o) => {
+      const itemsStr = o.items.map((i) => `${i.name} (x${i.qty})`).join('; ');
+      return [
+        o.id,
+        o.time,
+        o.customer.name,
+        o.customer.phone,
+        o.customer.address || '',
+        statusMap[o.status] || o.status,
+        itemsStr,
+        o.total,
+        o.note || '',
+      ];
+    });
+    exportToExcelCSV('Bao_Cao_Don_Hang_Online', headers, rows);
+  };
+
+  // 5. Xuất Excel Đơn Hàng Sự Kiện & Tiệc
+  const handleExportOrdersEventExcel = () => {
+    const headers = [
+      'Mã đơn tiệc',
+      'Thời gian gửi',
+      'Tên khách hàng',
+      'Số điện thoại',
+      'Trạng thái',
+      'Yêu cầu chi tiết / Dự toán tiệc',
+    ];
+    const eventOrders = orders.filter((o) => o.type === 'bulk');
+    const statusMap: Record<string, string> = {
+      pending: 'Chờ báo giá',
+      contacted: 'Đã gọi tư vấn',
+      completed: 'Chốt tiệc thành công',
+      cancelled: 'Đã hủy',
+    };
+    const rows = eventOrders.map((o) => [
+      o.id,
+      o.time,
+      o.customer.name,
+      o.customer.phone,
+      statusMap[o.status] || o.status,
+      o.note || '',
+    ]);
+    exportToExcelCSV('Bao_Cao_Don_Tiec_Su_Kien', headers, rows);
+  };
+
+  // 6. Xuất Excel Danh Sách Món Bánh
+  const handleExportProductsExcel = () => {
+    const headers = [
+      'Mã bánh',
+      'Tên món bánh',
+      'Danh mục',
+      'Giá bán (VNĐ)',
+      'Giá vốn ước tính (VNĐ)',
+      'Tiền lời/cái (VNĐ)',
+      'Tỉ suất lãi (%)',
+      'Tình trạng bán',
+      'Mô tả sản phẩm',
+    ];
+    const rows = products.map((p) => {
+      const cost = p.costPrice || Math.round(p.price * 0.38);
+      const profit = p.price - cost;
+      const margin = ((profit / p.price) * 100).toFixed(1);
+      return [
+        p.id,
+        p.name,
+        categories.find((c) => c.id === p.category)?.name || p.category,
+        p.price,
+        cost,
+        profit,
+        `${margin}%`,
+        p.inStock ? 'Còn hàng' : 'Hết hàng',
+        p.desc || '',
+      ];
+    });
+    exportToExcelCSV('Danh_Sach_Thuc_Don_Banh', headers, rows);
+  };
+
   // Loading barrier during client hydration
   if (!isMounted) {
     return (
@@ -582,7 +861,7 @@ export default function AdminPage() {
                 type="password"
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
-                placeholder="Nhập mã PIN quản trị (Mặc định: 123456)"
+                placeholder="Nhập mã PIN quản trị"
                 className="w-full px-4 py-3 rounded-2xl border border-[#eee2da] text-center font-bold text-base focus:outline-none focus:border-[#d993a1] tracking-widest text-[#59453f]"
                 autoFocus
               />
@@ -865,9 +1144,116 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Notification Bell with Badge */}
+            <div className="relative">
+              <button
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                className={`relative p-2 rounded-full bg-white border transition-all shadow-2xs flex items-center justify-center ${
+                  isNotificationOpen
+                    ? 'border-[#c77f8e] text-[#c77f8e] bg-[#fdf5f6]'
+                    : 'border-[#eee2da] hover:border-[#c77f8e] text-[#59453f]'
+                }`}
+                title="Thông báo hệ thống"
+                id="admin-notification-bell"
+              >
+                <i
+                  className={`ph text-lg ${
+                    notifications.length > 0 ? 'ph-bell-ringing text-[#c77f8e]' : 'ph-bell'
+                  }`}
+                ></i>
+                {notifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+                    {notifications.length > 9 ? '9+' : notifications.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Dropdown Popover */}
+              {isNotificationOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsNotificationOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-[#eee2da] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="p-4 bg-[#fbf6f0] border-b border-[#eee2da] flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <i className="ph-fill ph-bell-simple text-lg text-[#c77f8e]"></i>
+                        <b className="font-serif-title font-bold text-sm text-[#59453f]">
+                          Thông Báo Hệ Thống
+                        </b>
+                        <span className="text-[10px] font-bold bg-[#f4dfe1] text-[#c77f8e] px-2 py-0.5 rounded-full">
+                          {notifications.length}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setIsNotificationOpen(false)}
+                        className="text-gray-400 hover:text-[#59453f] p-1"
+                      >
+                        <i className="ph ph-x text-base"></i>
+                      </button>
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto divide-y divide-[#eee2da]/60">
+                      {notifications.length === 0 ? (
+                        <div className="p-6 text-center space-y-2">
+                          <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto text-2xl">
+                            <i className="ph ph-check-circle"></i>
+                          </div>
+                          <p className="text-xs font-bold text-[#59453f]">Hệ thống ổn định!</p>
+                          <p className="text-[11px] text-[#9b8982]">
+                            Không có đơn hàng chờ duyệt hay cảnh báo hết nguyên vật liệu.
+                          </p>
+                        </div>
+                      ) : (
+                        notifications.map((n) => (
+                          <div
+                            key={n.id}
+                            onClick={() => {
+                              setCurrentTab(n.tab);
+                              setIsNotificationOpen(false);
+                            }}
+                            className="p-3.5 hover:bg-[#faf6f3] cursor-pointer transition flex items-start gap-3"
+                          >
+                            <div
+                              className={`w-9 h-9 rounded-2xl flex items-center justify-center text-lg shrink-0 ${n.color}`}
+                            >
+                              <i className={`ph ${n.icon}`}></i>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <b className="text-xs text-[#59453f] font-bold block truncate">
+                                {n.title}
+                              </b>
+                              <p className="text-[11px] text-[#9b8982] line-clamp-2 mt-0.5">
+                                {n.desc}
+                              </p>
+                              <div className="flex items-center justify-between mt-1 text-[10px]">
+                                <span className="text-gray-400">{n.time}</span>
+                                <span className="font-bold text-[#c77f8e] hover:underline flex items-center gap-0.5">
+                                  Xem ngay <i className="ph ph-caret-right"></i>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {notifications.length > 0 && (
+                      <div className="p-2.5 bg-gray-50 border-t border-[#eee2da] text-center">
+                        <span className="text-[11px] text-[#9b8982]">
+                          Bấm vào từng mục để chuyển nhanh đến màn hình tương ứng
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
             <span
-              className={`px-3 py-1 rounded-full text-[10px] font-bold border flex items-center gap-1.5 ${
+              className={`px-3 py-1 rounded-full text-[10px] font-bold border hidden sm:flex items-center gap-1.5 ${
                 isSupabaseConfigured()
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   : 'bg-amber-50 text-amber-700 border-amber-200'
@@ -964,7 +1350,7 @@ export default function AdminPage() {
               </div>
 
               {/* Quick Actions Bar */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <button
                   onClick={() => setIsManualOrderOpen(true)}
                   className="bg-[#fffdf9] p-4 rounded-2xl border border-[#eee2da] hover:border-[#c77f8e] flex items-center gap-3 text-left transition-all"
@@ -1016,6 +1402,20 @@ export default function AdminPage() {
                   <div>
                     <b className="block text-xs font-bold text-[#59453f]">Xem Báo cáo Lời/Lỗ</b>
                     <span className="text-[11px] text-[#9b8982]">Chi tiết biên lợi nhuận</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleExportFinanceExcel}
+                  className="bg-[#fffdf9] p-4 rounded-2xl border border-[#eee2da] hover:border-emerald-600 flex items-center gap-3 text-left transition-all"
+                  title="Xuất file Excel báo cáo tài chính P&L"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center text-xl shrink-0">
+                    <i className="ph ph-file-csv"></i>
+                  </div>
+                  <div>
+                    <b className="block text-xs font-bold text-[#59453f]">Xuất Excel P&L</b>
+                    <span className="text-[11px] text-[#9b8982]">Tải file báo cáo nhanh</span>
                   </div>
                 </button>
               </div>
@@ -1096,12 +1496,20 @@ export default function AdminPage() {
                     Hệ thống tự động tính toán Doanh thu, Giá vốn nguyên liệu bánh (COGS), Chi phí vận hành và Lợi nhuận ròng.
                   </p>
                 </div>
-                <button
-                  onClick={() => setIsExpenseModalOpen(true)}
-                  className="px-5 py-2.5 rounded-full bg-[#59453f] hover:bg-[#c77f8e] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition"
-                >
-                  <i className="ph ph-plus-circle text-base"></i> Ghi Nhận Khoản Chi Mới
-                </button>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <button
+                    onClick={handleExportFinanceExcel}
+                    className="px-4 py-2.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
+                  >
+                    <i className="ph ph-file-csv text-base"></i> Xuất Excel Báo Cáo P&L
+                  </button>
+                  <button
+                    onClick={() => setIsExpenseModalOpen(true)}
+                    className="px-5 py-2.5 rounded-full bg-[#59453f] hover:bg-[#c77f8e] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition"
+                  >
+                    <i className="ph ph-plus-circle text-base"></i> Ghi Nhận Khoản Chi Mới
+                  </button>
+                </div>
               </div>
 
               {/* BẢNG TỔNG HỢP P&L (PROFIT & LOSS STATEMENT) */}
@@ -1141,17 +1549,25 @@ export default function AdminPage() {
 
               {/* BẢNG PHÂN TÍCH LỜI LỖ THEO TỪNG MÓN BÁNH */}
               <div className="bg-white rounded-3xl border border-[#eee2da] shadow-xs overflow-hidden">
-                <div className="p-4 border-b border-[#eee2da] bg-[#fbf6f0] flex justify-between items-center">
+                <div className="p-4 border-b border-[#eee2da] bg-[#fbf6f0] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <div>
                     <b className="font-serif-title text-sm text-[#59453f] block">Phân Tích Biên Lợi Nhuận Từng Chiếc Bánh</b>
                     <span className="text-[11px] text-[#9b8982]">Biết chính xác mỗi chiếc bánh bán ra thu về bao nhiêu tiền lời</span>
                   </div>
-                  <button
-                    onClick={() => setCurrentTab('products')}
-                    className="text-xs font-bold text-[#c77f8e] hover:underline"
-                  >
-                    Chỉnh sửa giá vốn menu →
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleExportProductMarginExcel}
+                      className="px-3 py-1.5 rounded-xl bg-white border border-[#eee2da] hover:border-emerald-600 text-xs font-bold text-[#59453f] hover:text-emerald-700 flex items-center gap-1 shadow-2xs transition"
+                    >
+                      <i className="ph ph-file-csv text-emerald-600 text-sm"></i> Xuất Excel Biên Lãi
+                    </button>
+                    <button
+                      onClick={() => setCurrentTab('products')}
+                      className="text-xs font-bold text-[#c77f8e] hover:underline"
+                    >
+                      Chỉnh sửa giá vốn menu →
+                    </button>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1207,17 +1623,25 @@ export default function AdminPage() {
 
               {/* SỔ QUỸ CHI TIÊU VẬN HÀNH (EXPENSES LOG) */}
               <div className="bg-white rounded-3xl border border-[#eee2da] shadow-xs overflow-hidden">
-                <div className="p-4 border-b border-[#eee2da] bg-[#fbf6f0] flex justify-between items-center">
+                <div className="p-4 border-b border-[#eee2da] bg-[#fbf6f0] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <div>
                     <b className="font-serif-title text-sm text-[#59453f] block">Sổ Quỹ Chi Tiêu Vận Hành (Gần đây)</b>
                     <span className="text-[11px] text-[#9b8982]">Tổng cộng: {formatMoney(finReport.totalExpenses)} đã chi</span>
                   </div>
-                  <button
-                    onClick={() => setIsExpenseModalOpen(true)}
-                    className="text-xs font-bold text-[#c77f8e] hover:underline flex items-center gap-1"
-                  >
-                    <i className="ph ph-plus-circle"></i> Thêm khoản chi
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleExportFinanceExcel}
+                      className="px-3 py-1.5 rounded-xl bg-white border border-[#eee2da] hover:border-emerald-600 text-xs font-bold text-[#59453f] hover:text-emerald-700 flex items-center gap-1 shadow-2xs transition"
+                    >
+                      <i className="ph ph-file-csv text-emerald-600 text-sm"></i> Xuất Excel Sổ Chi
+                    </button>
+                    <button
+                      onClick={() => setIsExpenseModalOpen(true)}
+                      className="text-xs font-bold text-[#c77f8e] hover:underline flex items-center gap-1"
+                    >
+                      <i className="ph ph-plus-circle"></i> Thêm khoản chi
+                    </button>
+                  </div>
                 </div>
 
                 <div className="divide-y divide-[#eee2da]">
@@ -1270,12 +1694,20 @@ export default function AdminPage() {
                     Tự động cảnh báo khi nguyên liệu chạm ngưỡng tối thiểu.
                   </p>
                 </div>
-                <button
-                  onClick={() => openIngredientModal()}
-                  className="px-5 py-2.5 rounded-full bg-[#59453f] hover:bg-[#c77f8e] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition"
-                >
-                  <i className="ph ph-plus-circle text-base"></i> Thêm Nguyên Liệu Mới
-                </button>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <button
+                    onClick={handleExportInventoryExcel}
+                    className="px-4 py-2.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
+                  >
+                    <i className="ph ph-file-csv text-base"></i> Xuất Excel Tồn Kho
+                  </button>
+                  <button
+                    onClick={() => openIngredientModal()}
+                    className="px-5 py-2.5 rounded-full bg-[#59453f] hover:bg-[#c77f8e] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition"
+                  >
+                    <i className="ph ph-plus-circle text-base"></i> Thêm Nguyên Liệu Mới
+                  </button>
+                </div>
               </div>
 
               {/* Cảnh báo nguyên liệu sắp hết */}
@@ -1428,15 +1860,24 @@ export default function AdminPage() {
                   ))}
                 </div>
 
-                <div className="relative w-full sm:w-64">
-                  <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                  <input
-                    type="text"
-                    value={searchOnline}
-                    onChange={(e) => setSearchOnline(e.target.value)}
-                    placeholder="Tìm tên, SĐT, mã đơn..."
-                    className="w-full bg-white border border-[#eee2da] py-2 pl-9 pr-3 rounded-full text-xs font-bold outline-none focus:border-[#d993a1] text-[#59453f]"
-                  />
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                    <input
+                      type="text"
+                      value={searchOnline}
+                      onChange={(e) => setSearchOnline(e.target.value)}
+                      placeholder="Tìm tên, SĐT, mã đơn..."
+                      className="w-full bg-white border border-[#eee2da] py-2 pl-9 pr-3 rounded-full text-xs font-bold outline-none focus:border-[#d993a1] text-[#59453f]"
+                    />
+                  </div>
+                  <button
+                    onClick={handleExportOrdersOnlineExcel}
+                    className="px-4 py-2 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition shrink-0"
+                    title="Xuất danh sách đơn hàng online ra Excel"
+                  >
+                    <i className="ph ph-file-csv text-base"></i> Xuất Excel
+                  </button>
                 </div>
               </div>
 
@@ -1578,15 +2019,24 @@ export default function AdminPage() {
                   ))}
                 </div>
 
-                <div className="relative w-full sm:w-64">
-                  <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                  <input
-                    type="text"
-                    value={searchEvent}
-                    onChange={(e) => setSearchEvent(e.target.value)}
-                    placeholder="Tìm khách sự kiện..."
-                    className="w-full bg-white border border-[#eee2da] py-2 pl-9 pr-3 rounded-full text-xs font-bold outline-none focus:border-[#d993a1] text-[#59453f]"
-                  />
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                    <input
+                      type="text"
+                      value={searchEvent}
+                      onChange={(e) => setSearchEvent(e.target.value)}
+                      placeholder="Tìm khách sự kiện..."
+                      className="w-full bg-white border border-[#eee2da] py-2 pl-9 pr-3 rounded-full text-xs font-bold outline-none focus:border-[#d993a1] text-[#59453f]"
+                    />
+                  </div>
+                  <button
+                    onClick={handleExportOrdersEventExcel}
+                    className="px-4 py-2 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition shrink-0"
+                    title="Xuất danh sách đơn tiệc ra Excel"
+                  >
+                    <i className="ph ph-file-csv text-base"></i> Xuất Excel
+                  </button>
                 </div>
               </div>
 
@@ -1695,12 +2145,21 @@ export default function AdminPage() {
                   </select>
                 </div>
 
-                <button
-                  onClick={() => openProductModal()}
-                  className="w-full sm:w-auto bg-[#59453f] hover:bg-[#c77f8e] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition flex items-center justify-center gap-2"
-                >
-                  <i className="ph ph-plus-circle text-base"></i> Thêm bánh mới
-                </button>
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                  <button
+                    onClick={handleExportProductsExcel}
+                    className="w-full sm:w-auto bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-full text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
+                    title="Xuất danh mục menu bánh ra Excel"
+                  >
+                    <i className="ph ph-file-csv text-base"></i> Xuất Excel Menu
+                  </button>
+                  <button
+                    onClick={() => openProductModal()}
+                    className="w-full sm:w-auto bg-[#59453f] hover:bg-[#c77f8e] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xs transition flex items-center justify-center gap-2"
+                  >
+                    <i className="ph ph-plus-circle text-base"></i> Thêm bánh mới
+                  </button>
+                </div>
               </div>
 
               {/* Grid */}

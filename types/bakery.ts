@@ -26,6 +26,7 @@ export interface OrderItem {
 export interface CustomerInfo {
   name: string;
   phone: string;
+  address?: string;
 }
 
 export type OrderType = 'regular' | 'bulk';
