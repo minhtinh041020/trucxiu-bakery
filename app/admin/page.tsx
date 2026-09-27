@@ -59,10 +59,18 @@ export default function AdminPage() {
   const [eventFilter, setEventFilter] = useState<string>('all');
   const [searchOnline, setSearchOnline] = useState<string>('');
   const [onlineDateFilter, setOnlineDateFilter] = useState<string>('all');
+  const [onlineStartDate, setOnlineStartDate] = useState<string>('');
+  const [onlineEndDate, setOnlineEndDate] = useState<string>('');
   const [onlineSort, setOnlineSort] = useState<string>('newest');
 
   const [searchEvent, setSearchEvent] = useState<string>('');
   const [eventDateFilter, setEventDateFilter] = useState<string>('all');
+  const [eventStartDate, setEventStartDate] = useState<string>('');
+  const [eventEndDate, setEventEndDate] = useState<string>('');
+
+  const [financePeriodFilter, setFinancePeriodFilter] = useState<string>('all');
+  const [financeStartDate, setFinanceStartDate] = useState<string>('');
+  const [financeEndDate, setFinanceEndDate] = useState<string>('');
 
   const [searchProduct, setSearchProduct] = useState<string>('');
   const [productCatFilter, setProductCatFilter] = useState<string>('all');
@@ -75,6 +83,9 @@ export default function AdminPage() {
   const [sortInventory, setSortInventory] = useState<string>('default');
 
   const [expenseCatFilter, setExpenseCatFilter] = useState<string>('all');
+  const [expenseDateFilter, setExpenseDateFilter] = useState<string>('all');
+  const [expenseStartDate, setExpenseStartDate] = useState<string>('');
+  const [expenseEndDate, setExpenseEndDate] = useState<string>('');
   const [searchExpense, setSearchExpense] = useState<string>('');
   const [marginFilter, setMarginFilter] = useState<'all' | 'super' | 'good' | 'warning'>('all');
   const [sortMargin, setSortMargin] = useState<string>('default');
@@ -134,38 +145,110 @@ export default function AdminPage() {
 
   const formatMoney = (val: number) => new Intl.NumberFormat('vi-VN').format(val) + 'đ';
 
-  const isOrderInDateRange = (order: Order, range: string) => {
-    if (range === 'all') return true;
-    const timeStr = order.time || '';
-    if (range === 'today') {
-      if (timeStr.includes('Hôm nay')) return true;
-      if (order.created_at) {
-        const d = new Date(order.created_at);
-        const now = new Date();
-        return d.toDateString() === now.toDateString();
+  const isDateInRange = (
+    dateVal: string | undefined,
+    fallbackTimeStr: string | undefined,
+    mode: string,
+    customStart?: string,
+    customEnd?: string
+  ): boolean => {
+    if (mode === 'all') return true;
+
+    let d: Date | null = null;
+    if (dateVal) {
+      const dmyMatch = dateVal.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+      if (dmyMatch) {
+        d = new Date(parseInt(dmyMatch[3], 10), parseInt(dmyMatch[2], 10) - 1, parseInt(dmyMatch[1], 10));
+      } else {
+        const parsed = new Date(dateVal);
+        if (!isNaN(parsed.getTime())) d = parsed;
       }
-      return false;
     }
-    if (range === 'yesterday') {
-      if (timeStr.includes('Hôm qua')) return true;
-      if (order.created_at) {
-        const d = new Date(order.created_at);
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        return d.toDateString() === yesterday.toDateString();
+
+    const now = new Date();
+
+    if (!d && fallbackTimeStr) {
+      if (fallbackTimeStr.includes('Hôm nay')) {
+        d = new Date();
+      } else if (fallbackTimeStr.includes('Hôm qua')) {
+        d = new Date();
+        d.setDate(d.getDate() - 1);
+      } else {
+        const dmyMatch = fallbackTimeStr.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+        if (dmyMatch) {
+          d = new Date(parseInt(dmyMatch[3], 10), parseInt(dmyMatch[2], 10) - 1, parseInt(dmyMatch[1], 10));
+        }
       }
-      return false;
     }
-    if (range === 'recent7') {
-      if (timeStr.includes('Hôm nay') || timeStr.includes('Hôm qua')) return true;
-      if (order.created_at) {
-        const d = new Date(order.created_at);
-        const diffDays = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
-        return diffDays <= 7;
+
+    if (!d) return mode === 'all';
+
+    if (mode === 'today') {
+      return (
+        d.getDate() === now.getDate() &&
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear()
+      );
+    }
+
+    if (mode === 'yesterday') {
+      const yest = new Date(now);
+      yest.setDate(yest.getDate() - 1);
+      return (
+        d.getDate() === yest.getDate() &&
+        d.getMonth() === yest.getMonth() &&
+        d.getFullYear() === yest.getFullYear()
+      );
+    }
+
+    if (mode === 'this_week') {
+      const currentDay = now.getDay();
+      const distanceToMonday = (currentDay + 6) % 7;
+      const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday, 0, 0, 0, 0);
+      const sunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday + 6, 23, 59, 59, 999);
+      return d >= monday && d <= sunday;
+    }
+
+    if (mode === 'recent7') {
+      const diffDays = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
+      return diffDays <= 7;
+    }
+
+    if (mode === 'this_month') {
+      return (
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear()
+      );
+    }
+
+    if (mode === 'custom') {
+      if (customStart) {
+        const [sY, sM, sD] = customStart.split('-').map(Number);
+        if (sY && sM && sD) {
+          const start = new Date(sY, sM - 1, sD, 0, 0, 0, 0);
+          if (d < start) return false;
+        }
+      }
+      if (customEnd) {
+        const [eY, eM, eD] = customEnd.split('-').map(Number);
+        if (eY && eM && eD) {
+          const end = new Date(eY, eM - 1, eD, 23, 59, 59, 999);
+          if (d > end) return false;
+        }
       }
       return true;
     }
+
     return true;
+  };
+
+  const isOrderInDateRange = (
+    order: Order,
+    mode: string,
+    customStart?: string,
+    customEnd?: string
+  ) => {
+    return isDateInRange(order.created_at, order.time, mode, customStart, customEnd);
   };
 
   // Check login session
@@ -601,11 +684,18 @@ export default function AdminPage() {
     }
   };
 
-  // Tính toán Báo cáo Kế toán Tài chính
+  // Tính toán Báo cáo Kế toán Tài chính (hỗ trợ lọc theo thời gian: hôm nay, tuần này, tháng này, từ ngày đến ngày)
+  const filteredOrdersForFin = orders.filter((o) =>
+    isDateInRange(o.created_at, o.time, financePeriodFilter, financeStartDate, financeEndDate)
+  );
+  const filteredExpensesForFin = expenses.filter((e) =>
+    isDateInRange(e.date, undefined, financePeriodFilter, financeStartDate, financeEndDate)
+  );
+
   const finReport: FinancialReport = DataService.calculateFinancialReport(
-    orders,
+    filteredOrdersForFin,
     products,
-    expenses,
+    filteredExpensesForFin,
     ingredients
   );
 
@@ -1807,6 +1897,81 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {/* Filter kỳ báo cáo tài chính P&L */}
+              <div className="bg-white p-3.5 rounded-2xl border border-[#eee2da] shadow-2xs space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-[#9b8982] flex items-center gap-1 mr-1">
+                      <i className="ph ph-calendar text-xs"></i> Kỳ báo cáo:
+                    </span>
+                    {[
+                      { id: 'all', label: 'Tất cả thời gian' },
+                      { id: 'today', label: 'Hôm nay' },
+                      { id: 'this_week', label: 'Tuần này' },
+                      { id: 'this_month', label: 'Tháng này' },
+                      { id: 'custom', label: 'Từ ngày - Đến ngày' },
+                    ].map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setFinancePeriodFilter(d.id)}
+                        className={`py-1 px-3 text-xs font-bold rounded-xl transition-all ${
+                          financePeriodFilter === d.id
+                            ? 'bg-[#59453f] text-white shadow-2xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <span className="text-xs text-[#9b8982] font-medium">
+                    {financePeriodFilter === 'all' && 'Toàn bộ dữ liệu tích lũy'}
+                    {financePeriodFilter === 'today' && 'Số liệu ngày hôm nay'}
+                    {financePeriodFilter === 'this_week' && 'Số liệu tuần này'}
+                    {financePeriodFilter === 'this_month' && 'Số liệu tháng này'}
+                    {financePeriodFilter === 'custom' && (financeStartDate || financeEndDate ? `Từ ${financeStartDate || '...'} đến ${financeEndDate || '...'}` : 'Tùy chọn khoảng ngày')}
+                  </span>
+                </div>
+
+                {financePeriodFilter === 'custom' && (
+                  <div className="pt-2 border-t border-dashed border-[#eee2da] flex items-center gap-3 flex-wrap text-xs font-bold text-[#59453f]">
+                    <span className="text-[11px] text-[#9b8982]">Khoảng thời gian:</span>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-[11px] text-[#9b8982]">Từ ngày:</label>
+                      <input
+                        type="date"
+                        value={financeStartDate}
+                        onChange={(e) => setFinanceStartDate(e.target.value)}
+                        className="bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-[#59453f] outline-none focus:border-[#c77f8e]"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-[11px] text-[#9b8982]">Đến ngày:</label>
+                      <input
+                        type="date"
+                        value={financeEndDate}
+                        onChange={(e) => setFinanceEndDate(e.target.value)}
+                        className="bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-[#59453f] outline-none focus:border-[#c77f8e]"
+                      />
+                    </div>
+                    {(financeStartDate || financeEndDate) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFinanceStartDate('');
+                          setFinanceEndDate('');
+                        }}
+                        className="text-xs text-red-500 hover:underline font-bold"
+                      >
+                        Xóa chọn ngày
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* BẢNG TỔNG HỢP P&L (PROFIT & LOSS STATEMENT) */}
               <div className="grid grid-cols-1 md:grid-cols-5 gap-3.5">
                 <div className="bg-white p-4 rounded-3xl border border-[#eee2da] shadow-xs space-y-1">
@@ -2006,45 +2171,110 @@ export default function AdminPage() {
                 </div>
 
                 {/* Filter & Search Bar cho Khoản Chi */}
-                <div className="p-3 bg-white border-b border-[#eee2da] flex flex-wrap items-center justify-between gap-2.5">
-                  <div className="relative flex-1 min-w-[200px] max-w-sm">
-                    <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                    <input
-                      type="text"
-                      value={searchExpense}
-                      onChange={(e) => setSearchExpense(e.target.value)}
-                      placeholder="Tìm tên khoản chi..."
-                      className="w-full bg-gray-50 border border-gray-200 py-1.5 pl-8 pr-3 rounded-full text-xs font-bold outline-none focus:border-[#d993a1] text-[#59453f]"
-                    />
+                <div className="p-3 bg-white border-b border-[#eee2da] space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2.5">
+                    <div className="relative flex-1 min-w-[200px] max-w-sm">
+                      <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                      <input
+                        type="text"
+                        value={searchExpense}
+                        onChange={(e) => setSearchExpense(e.target.value)}
+                        placeholder="Tìm tên khoản chi..."
+                        className="w-full bg-gray-50 border border-gray-200 py-1.5 pl-8 pr-3 rounded-full text-xs font-bold outline-none focus:border-[#d993a1] text-[#59453f]"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-[#9b8982]">Loại chi phí:</span>
+                      <select
+                        value={expenseCatFilter}
+                        onChange={(e) => setExpenseCatFilter(e.target.value)}
+                        className="bg-gray-50 border border-gray-200 text-[#59453f] text-xs font-bold rounded-xl px-2.5 py-1.5 outline-none focus:border-[#c77f8e]"
+                      >
+                        <option value="all">Tất cả khoản chi</option>
+                        <option value="ingredient">Nguyên liệu bánh</option>
+                        <option value="packaging">Hộp & Nơ bao bì</option>
+                        <option value="utilities">Điện / Nước / Gas</option>
+                        <option value="salary">Lương nhân sự</option>
+                        <option value="marketing">Quảng cáo & Marketing</option>
+                        <option value="rent">Mặt bằng</option>
+                        <option value="other">Chi khác</option>
+                      </select>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold text-[#9b8982]">Loại chi phí:</span>
-                    <select
-                      value={expenseCatFilter}
-                      onChange={(e) => setExpenseCatFilter(e.target.value)}
-                      className="bg-gray-50 border border-gray-200 text-[#59453f] text-xs font-bold rounded-xl px-2.5 py-1.5 outline-none focus:border-[#c77f8e]"
-                    >
-                      <option value="all">Tất cả khoản chi</option>
-                      <option value="ingredient">Nguyên liệu bánh</option>
-                      <option value="packaging">Hộp & Nơ bao bì</option>
-                      <option value="utilities">Điện / Nước / Gas</option>
-                      <option value="salary">Lương nhân sự</option>
-                      <option value="marketing">Quảng cáo & Marketing</option>
-                      <option value="rent">Mặt bằng</option>
-                      <option value="other">Chi khác</option>
-                    </select>
+                  {/* Filter thời gian sổ chi */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-gray-100">
+                    <span className="text-[11px] font-bold text-[#9b8982] flex items-center gap-1 mr-1">
+                      <i className="ph ph-calendar text-xs"></i> Ngày chi:
+                    </span>
+                    {[
+                      { id: 'all', label: 'Tất cả' },
+                      { id: 'today', label: 'Hôm nay' },
+                      { id: 'this_week', label: 'Tuần này' },
+                      { id: 'this_month', label: 'Tháng này' },
+                      { id: 'custom', label: 'Từ ngày - Đến ngày' },
+                    ].map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setExpenseDateFilter(d.id)}
+                        className={`py-0.5 px-2.5 text-xs font-bold rounded-lg transition-all ${
+                          expenseDateFilter === d.id
+                            ? 'bg-[#c77f8e] text-white shadow-2xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
                   </div>
+
+                  {expenseDateFilter === 'custom' && (
+                    <div className="pt-2 border-t border-dashed border-[#eee2da] flex items-center gap-3 flex-wrap text-xs font-bold text-[#59453f]">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-[11px] text-[#9b8982]">Từ:</label>
+                        <input
+                          type="date"
+                          value={expenseStartDate}
+                          onChange={(e) => setExpenseStartDate(e.target.value)}
+                          className="bg-gray-50 border border-gray-200 px-2 py-1 rounded-xl text-xs font-semibold text-[#59453f] outline-none focus:border-[#c77f8e]"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-[11px] text-[#9b8982]">Đến:</label>
+                        <input
+                          type="date"
+                          value={expenseEndDate}
+                          onChange={(e) => setExpenseEndDate(e.target.value)}
+                          className="bg-gray-50 border border-gray-200 px-2 py-1 rounded-xl text-xs font-semibold text-[#59453f] outline-none focus:border-[#c77f8e]"
+                        />
+                      </div>
+                      {(expenseStartDate || expenseEndDate) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExpenseStartDate('');
+                            setExpenseEndDate('');
+                          }}
+                          className="text-xs text-red-500 hover:underline font-bold"
+                        >
+                          Xóa mốc
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="divide-y divide-[#eee2da]">
                   {expenses
                     .filter((exp) => {
                       const matchCat = expenseCatFilter === 'all' || exp.category === expenseCatFilter;
+                      const matchTime = isDateInRange(exp.date, undefined, expenseDateFilter, expenseStartDate, expenseEndDate);
                       const matchSearch =
                         searchExpense.trim() === '' ||
                         exp.description.toLowerCase().includes(searchExpense.toLowerCase());
-                      return matchCat && matchSearch;
+                      return matchCat && matchTime && matchSearch;
                     })
                     .map((exp) => (
                       <div key={exp.id} className="p-4 flex items-center justify-between text-xs hover:bg-gray-50/80">
@@ -2424,45 +2654,84 @@ export default function AdminPage() {
               </div>
 
               {/* Date & Sort Controls */}
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-[#eee2da] shadow-2xs">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-bold text-[#9b8982] flex items-center gap-1">
-                    <i className="ph ph-calendar text-xs"></i> Lọc ngày:
-                  </span>
-                  {[
-                    { id: 'all', label: 'Tất cả' },
-                    { id: 'today', label: 'Hôm nay' },
-                    { id: 'yesterday', label: 'Hôm qua' },
-                    { id: 'recent7', label: '7 ngày qua' },
-                  ].map((d) => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() => setOnlineDateFilter(d.id)}
-                      className={`py-1 px-2.5 text-xs font-bold rounded-lg transition-all ${
-                        onlineDateFilter === d.id
-                          ? 'bg-[#c77f8e] text-white shadow-2xs'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+              <div className="bg-white p-3.5 rounded-2xl border border-[#eee2da] shadow-2xs space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-[#9b8982] flex items-center gap-1 mr-1">
+                      <i className="ph ph-calendar text-xs"></i> Lọc thời gian:
+                    </span>
+                    {[
+                      { id: 'all', label: 'Tất cả' },
+                      { id: 'today', label: 'Hôm nay' },
+                      { id: 'this_week', label: 'Tuần này' },
+                      { id: 'this_month', label: 'Tháng này' },
+                      { id: 'custom', label: 'Từ ngày - Đến ngày' },
+                    ].map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setOnlineDateFilter(d.id)}
+                        className={`py-1 px-3 text-xs font-bold rounded-xl transition-all ${
+                          onlineDateFilter === d.id
+                            ? 'bg-[#c77f8e] text-white shadow-2xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-[#9b8982]">Sắp xếp:</span>
+                    <select
+                      value={onlineSort}
+                      onChange={(e) => setOnlineSort(e.target.value)}
+                      className="bg-gray-50 border border-gray-200 text-[#59453f] text-xs font-bold rounded-xl px-2.5 py-1 outline-none focus:border-[#c77f8e]"
                     >
-                      {d.label}
-                    </button>
-                  ))}
+                      <option value="newest">Mới nhất trước ↓</option>
+                      <option value="oldest">Cũ nhất trước ↑</option>
+                      <option value="total-desc">Giá trị đơn cao nhất ↓</option>
+                      <option value="total-asc">Giá trị đơn thấp nhất ↑</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold text-[#9b8982]">Sắp xếp:</span>
-                  <select
-                    value={onlineSort}
-                    onChange={(e) => setOnlineSort(e.target.value)}
-                    className="bg-gray-50 border border-gray-200 text-[#59453f] text-xs font-bold rounded-xl px-2.5 py-1 outline-none focus:border-[#c77f8e]"
-                  >
-                    <option value="newest">Mới nhất trước ↓</option>
-                    <option value="oldest">Cũ nhất trước ↑</option>
-                    <option value="total-desc">Giá trị đơn cao nhất ↓</option>
-                    <option value="total-asc">Giá trị đơn thấp nhất ↑</option>
-                  </select>
-                </div>
+                {onlineDateFilter === 'custom' && (
+                  <div className="pt-2 border-t border-dashed border-[#eee2da] flex items-center gap-3 flex-wrap text-xs font-bold text-[#59453f]">
+                    <span className="text-[11px] text-[#9b8982]">Chọn khoảng ngày:</span>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-[11px] text-[#9b8982]">Từ:</label>
+                      <input
+                        type="date"
+                        value={onlineStartDate}
+                        onChange={(e) => setOnlineStartDate(e.target.value)}
+                        className="bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-[#59453f] outline-none focus:border-[#c77f8e]"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-[11px] text-[#9b8982]">Đến:</label>
+                      <input
+                        type="date"
+                        value={onlineEndDate}
+                        onChange={(e) => setOnlineEndDate(e.target.value)}
+                        className="bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-[#59453f] outline-none focus:border-[#c77f8e]"
+                      />
+                    </div>
+                    {(onlineStartDate || onlineEndDate) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOnlineStartDate('');
+                          setOnlineEndDate('');
+                        }}
+                        className="text-xs text-red-500 hover:underline font-bold"
+                      >
+                        Xóa mốc ngày
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -2470,7 +2739,7 @@ export default function AdminPage() {
                   .filter((o) => {
                     if (o.type !== 'regular') return false;
                     if (onlineFilter !== 'all' && o.status !== onlineFilter) return false;
-                    if (!isOrderInDateRange(o, onlineDateFilter)) return false;
+                    if (!isOrderInDateRange(o, onlineDateFilter, onlineStartDate, onlineEndDate)) return false;
                     if (searchOnline.trim()) {
                       const q = searchOnline.toLowerCase();
                       return (
@@ -2591,7 +2860,7 @@ export default function AdminPage() {
                 {orders.filter((o) => {
                   if (o.type !== 'regular') return false;
                   if (onlineFilter !== 'all' && o.status !== onlineFilter) return false;
-                  if (!isOrderInDateRange(o, onlineDateFilter)) return false;
+                  if (!isOrderInDateRange(o, onlineDateFilter, onlineStartDate, onlineEndDate)) return false;
                   if (searchOnline.trim()) {
                     const q = searchOnline.toLowerCase();
                     return (
@@ -2658,34 +2927,73 @@ export default function AdminPage() {
               </div>
 
               {/* Date Filter Controls for Event */}
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-[#eee2da] shadow-2xs">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-bold text-[#9b8982] flex items-center gap-1">
-                    <i className="ph ph-calendar text-xs"></i> Lọc ngày đặt:
+              <div className="bg-white p-3.5 rounded-2xl border border-[#eee2da] shadow-2xs space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-[#9b8982] flex items-center gap-1 mr-1">
+                      <i className="ph ph-calendar text-xs"></i> Lọc thời gian đặt:
+                    </span>
+                    {[
+                      { id: 'all', label: 'Tất cả' },
+                      { id: 'today', label: 'Hôm nay' },
+                      { id: 'this_week', label: 'Tuần này' },
+                      { id: 'this_month', label: 'Tháng này' },
+                      { id: 'custom', label: 'Từ ngày - Đến ngày' },
+                    ].map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setEventDateFilter(d.id)}
+                        className={`py-1 px-3 text-xs font-bold rounded-xl transition-all ${
+                          eventDateFilter === d.id
+                            ? 'bg-[#c77f8e] text-white shadow-2xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-xs text-[#9b8982]">
+                    Tổng: {orders.filter((o) => o.type === 'bulk').length} đơn tiệc
                   </span>
-                  {[
-                    { id: 'all', label: 'Tất cả' },
-                    { id: 'today', label: 'Hôm nay' },
-                    { id: 'yesterday', label: 'Hôm qua' },
-                    { id: 'recent7', label: '7 ngày qua' },
-                  ].map((d) => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() => setEventDateFilter(d.id)}
-                      className={`py-1 px-2.5 text-xs font-bold rounded-lg transition-all ${
-                        eventDateFilter === d.id
-                          ? 'bg-[#c77f8e] text-white shadow-2xs'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {d.label}
-                    </button>
-                  ))}
                 </div>
-                <span className="text-xs text-[#9b8982]">
-                  Tổng: {orders.filter((o) => o.type === 'bulk').length} đơn tiệc
-                </span>
+
+                {eventDateFilter === 'custom' && (
+                  <div className="pt-2 border-t border-dashed border-[#eee2da] flex items-center gap-3 flex-wrap text-xs font-bold text-[#59453f]">
+                    <span className="text-[11px] text-[#9b8982]">Chọn khoảng ngày:</span>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-[11px] text-[#9b8982]">Từ:</label>
+                      <input
+                        type="date"
+                        value={eventStartDate}
+                        onChange={(e) => setEventStartDate(e.target.value)}
+                        className="bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-[#59453f] outline-none focus:border-[#c77f8e]"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-[11px] text-[#9b8982]">Đến:</label>
+                      <input
+                        type="date"
+                        value={eventEndDate}
+                        onChange={(e) => setEventEndDate(e.target.value)}
+                        className="bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-[#59453f] outline-none focus:border-[#c77f8e]"
+                      />
+                    </div>
+                    {(eventStartDate || eventEndDate) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEventStartDate('');
+                          setEventEndDate('');
+                        }}
+                        className="text-xs text-red-500 hover:underline font-bold"
+                      >
+                        Xóa mốc ngày
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -2693,7 +3001,7 @@ export default function AdminPage() {
                   .filter((o) => {
                     if (o.type !== 'bulk') return false;
                     if (eventFilter !== 'all' && o.status !== eventFilter) return false;
-                    if (!isOrderInDateRange(o, eventDateFilter)) return false;
+                    if (!isOrderInDateRange(o, eventDateFilter, eventStartDate, eventEndDate)) return false;
                     if (searchEvent.trim()) {
                       const q = searchEvent.toLowerCase();
                       return (
@@ -2764,7 +3072,7 @@ export default function AdminPage() {
                 {orders.filter((o) => {
                   if (o.type !== 'bulk') return false;
                   if (eventFilter !== 'all' && o.status !== eventFilter) return false;
-                  if (!isOrderInDateRange(o, eventDateFilter)) return false;
+                  if (!isOrderInDateRange(o, eventDateFilter, eventStartDate, eventEndDate)) return false;
                   if (searchEvent.trim()) {
                     const q = searchEvent.toLowerCase();
                     return (
