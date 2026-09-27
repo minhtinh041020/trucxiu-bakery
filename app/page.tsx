@@ -11,6 +11,9 @@ export default function StorefrontPage() {
   const [settings, setSettings] = useState<StoreSettings>(initialSettings);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [priceRange, setPriceRange] = useState<'all' | 'under100' | '100to200' | 'above200'>('all');
+  const [inStockOnly, setInStockOnly] = useState<boolean>(false);
+  const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc' | 'name'>('default');
 
   // Cart state
   interface CartItem extends Product {
@@ -181,14 +184,44 @@ export default function StorefrontPage() {
     showToast(`Cảm ơn ${newEventOrder.customer.name}! Tiệm sẽ liên hệ sớm nhất.`);
   };
 
-  const filteredProducts = products.filter((p) => {
-    const matchCat = selectedCategory === 'all' || p.category === selectedCategory;
-    const matchSearch =
-      searchQuery === '' ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.desc.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchCat && matchSearch;
-  });
+  const filteredProducts = products
+    .filter((p) => {
+      const matchCat = selectedCategory === 'all' || p.category === selectedCategory;
+      const matchSearch =
+        searchQuery.trim() === '' ||
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.desc.toLowerCase().includes(searchQuery.toLowerCase());
+
+      let matchPrice = true;
+      if (priceRange === 'under100') matchPrice = p.price < 100000;
+      else if (priceRange === '100to200') matchPrice = p.price >= 100000 && p.price <= 200000;
+      else if (priceRange === 'above200') matchPrice = p.price > 200000;
+
+      const matchStock = inStockOnly ? p.inStock : true;
+
+      return matchCat && matchSearch && matchPrice && matchStock;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'price-asc') return a.price - b.price;
+      if (sortBy === 'price-desc') return b.price - a.price;
+      if (sortBy === 'name') return a.name.localeCompare(b.name, 'vi');
+      return 0;
+    });
+
+  const hasActiveFilters =
+    selectedCategory !== 'all' ||
+    searchQuery.trim() !== '' ||
+    priceRange !== 'all' ||
+    inStockOnly ||
+    sortBy !== 'default';
+
+  const resetFilters = () => {
+    setSelectedCategory('all');
+    setSearchQuery('');
+    setPriceRange('all');
+    setInStockOnly(false);
+    setSortBy('default');
+  };
 
   return (
     <div className="min-h-screen bg-[#faf8f7] text-[#5c4d4d] flex flex-col selection:bg-[#e6a8b7] selection:text-white">
@@ -424,7 +457,113 @@ export default function StorefrontPage() {
           })}
         </div>
 
-        {/* Product Cards Grid */}
+        {/* Search & Advanced Filters Bar */}
+        <div className="bg-white rounded-3xl p-4 sm:p-5 border border-[#eee2da] shadow-xs mb-8 space-y-4">
+          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <i className="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-base"></i>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Tìm bánh kem bắp, dâu tây, croissant, tiramisu..."
+                className="w-full bg-[#fbf6f0] border border-[#eee2da] py-2.5 pl-10 pr-9 rounded-2xl text-xs font-bold outline-none focus:border-[#d993a1] focus:bg-white text-[#5c4d4d] transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <i className="ph ph-x-circle text-base"></i>
+                </button>
+              )}
+            </div>
+
+            {/* Price Filter & Sort Dropdowns */}
+            <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+              {/* Price Filter */}
+              <div className="relative flex-1 sm:flex-initial">
+                <select
+                  value={priceRange}
+                  onChange={(e) => setPriceRange(e.target.value as any)}
+                  className="w-full bg-[#fbf6f0] border border-[#eee2da] py-2.5 px-3.5 rounded-2xl text-xs font-bold text-[#5c4d4d] outline-none focus:border-[#d993a1] cursor-pointer"
+                >
+                  <option value="all">Mọi mức giá</option>
+                  <option value="under100">Dưới 100.000đ</option>
+                  <option value="100to200">100.000đ - 200.000đ</option>
+                  <option value="above200">Trên 200.000đ</option>
+                </select>
+              </div>
+
+              {/* Sort By */}
+              <div className="relative flex-1 sm:flex-initial">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="w-full bg-[#fbf6f0] border border-[#eee2da] py-2.5 px-3.5 rounded-2xl text-xs font-bold text-[#5c4d4d] outline-none focus:border-[#d993a1] cursor-pointer"
+                >
+                  <option value="default">Sắp xếp: Mặc định</option>
+                  <option value="price-asc">Giá: Thấp đến cao</option>
+                  <option value="price-desc">Giá: Cao đến thấp</option>
+                  <option value="name">Tên: A - Z</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Filter Tags & Reset */}
+          <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-gray-100 text-xs">
+            <div className="flex items-center gap-3">
+              {/* In-stock toggle */}
+              <label className="flex items-center gap-2 cursor-pointer select-none font-bold text-[#5c4d4d]">
+                <input
+                  type="checkbox"
+                  checked={inStockOnly}
+                  onChange={(e) => setInStockOnly(e.target.checked)}
+                  className="w-4 h-4 rounded text-[#c77f8e] focus:ring-[#c77f8e] accent-[#c77f8e]"
+                />
+                <span>Chỉ hiện bánh còn hàng</span>
+              </label>
+
+              {/* Price quick tags */}
+              <div className="hidden sm:flex items-center gap-1.5 pl-3 border-l border-gray-200">
+                <span className="text-[11px] text-[#9c8e8e]">Khoảng giá:</span>
+                {[
+                  { id: 'under100', label: '< 100k' },
+                  { id: '100to200', label: '100k - 200k' },
+                  { id: 'above200', label: '> 200k' },
+                ].map((tag) => (
+                  <button
+                    key={tag.id}
+                    onClick={() => setPriceRange(priceRange === tag.id ? 'all' : (tag.id as any))}
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                      priceRange === tag.id
+                        ? 'bg-[#c77f8e] text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {tag.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] text-[#9c8e8e]">
+              <span>
+                Tìm thấy <b className="text-[#5c4d4d]">{filteredProducts.length}</b> món bánh
+              </span>
+              {hasActiveFilters && (
+                <button
+                  onClick={resetFilters}
+                  className="text-[#c77f8e] font-bold hover:underline ml-2 flex items-center gap-1 cursor-pointer"
+                >
+                  <i className="ph ph-arrow-counter-clockwise"></i> Đặt lại bộ lọc
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
         {filteredProducts.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-gray-200 my-8">
             <i className="ph ph-cake text-5xl text-gray-300 mb-2 block"></i>

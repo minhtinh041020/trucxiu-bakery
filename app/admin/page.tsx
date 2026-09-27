@@ -58,10 +58,26 @@ export default function AdminPage() {
   const [onlineFilter, setOnlineFilter] = useState<string>('all');
   const [eventFilter, setEventFilter] = useState<string>('all');
   const [searchOnline, setSearchOnline] = useState<string>('');
+  const [onlineDateFilter, setOnlineDateFilter] = useState<string>('all');
+  const [onlineSort, setOnlineSort] = useState<string>('newest');
+
   const [searchEvent, setSearchEvent] = useState<string>('');
+  const [eventDateFilter, setEventDateFilter] = useState<string>('all');
+
   const [searchProduct, setSearchProduct] = useState<string>('');
-  const [searchIngredient, setSearchIngredient] = useState<string>('');
   const [productCatFilter, setProductCatFilter] = useState<string>('all');
+  const [productStockFilter, setProductStockFilter] = useState<string>('all');
+  const [productSort, setProductSort] = useState<string>('default');
+
+  const [searchIngredient, setSearchIngredient] = useState<string>('');
+  const [stockStatusFilter, setStockStatusFilter] = useState<'all' | 'low' | 'normal'>('all');
+  const [unitFilter, setUnitFilter] = useState<string>('all');
+  const [sortInventory, setSortInventory] = useState<string>('default');
+
+  const [expenseCatFilter, setExpenseCatFilter] = useState<string>('all');
+  const [searchExpense, setSearchExpense] = useState<string>('');
+  const [marginFilter, setMarginFilter] = useState<'all' | 'super' | 'good' | 'warning'>('all');
+  const [sortMargin, setSortMargin] = useState<string>('default');
 
   // Modals
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
@@ -117,6 +133,40 @@ export default function AdminPage() {
   };
 
   const formatMoney = (val: number) => new Intl.NumberFormat('vi-VN').format(val) + 'đ';
+
+  const isOrderInDateRange = (order: Order, range: string) => {
+    if (range === 'all') return true;
+    const timeStr = order.time || '';
+    if (range === 'today') {
+      if (timeStr.includes('Hôm nay')) return true;
+      if (order.created_at) {
+        const d = new Date(order.created_at);
+        const now = new Date();
+        return d.toDateString() === now.toDateString();
+      }
+      return false;
+    }
+    if (range === 'yesterday') {
+      if (timeStr.includes('Hôm qua')) return true;
+      if (order.created_at) {
+        const d = new Date(order.created_at);
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        return d.toDateString() === yesterday.toDateString();
+      }
+      return false;
+    }
+    if (range === 'recent7') {
+      if (timeStr.includes('Hôm nay') || timeStr.includes('Hôm qua')) return true;
+      if (order.created_at) {
+        const d = new Date(order.created_at);
+        const diffDays = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
+        return diffDays <= 7;
+      }
+      return true;
+    }
+    return true;
+  };
 
   // Check login session
   useEffect(() => {
@@ -1815,6 +1865,47 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* Filter & Sort Bar cho Biên Lợi Nhuận */}
+                <div className="p-3 bg-white border-b border-[#eee2da] flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-[#9b8982] mr-1">Tỉ suất lợi nhuận:</span>
+                    {[
+                      { id: 'all', label: 'Tất cả' },
+                      { id: 'super', label: '⭐️ Siêu lợi nhuận (≥65%)' },
+                      { id: 'good', label: '✓ Lời tốt (55-65%)' },
+                      { id: 'warning', label: '⚠️ Cốt bánh cao (<55%)' },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setMarginFilter(tab.id as any)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition ${
+                          marginFilter === tab.id
+                            ? 'bg-[#59453f] text-white shadow-2xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-[#9b8982]">Sắp xếp:</span>
+                    <select
+                      value={sortMargin}
+                      onChange={(e) => setSortMargin(e.target.value)}
+                      className="bg-gray-50 border border-gray-200 text-[#59453f] text-xs font-bold rounded-xl px-2.5 py-1 outline-none focus:border-[#c77f8e]"
+                    >
+                      <option value="default">Mặc định</option>
+                      <option value="margin-desc">Biên lãi cao nhất ↓</option>
+                      <option value="margin-asc">Biên lãi thấp nhất ↑</option>
+                      <option value="profit-desc">Tiền lời nhiều nhất ↓</option>
+                      <option value="cost-desc">Giá vốn cao nhất ↓</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
                     <thead className="bg-[#faf8f7] text-[#9b8982] font-bold uppercase text-[10px] border-b border-[#eee2da]">
@@ -1828,39 +1919,64 @@ export default function AdminPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#eee2da]">
-                      {products.map((p) => {
-                        const cost = p.costPrice || Math.round(p.price * 0.38);
-                        const profit = p.price - cost;
-                        const margin = ((profit / p.price) * 100).toFixed(1);
-                        return (
-                          <tr key={p.id} className="hover:bg-gray-50/80 transition">
-                            <td className="p-3 pl-4 flex items-center gap-2.5">
-                              <img src={p.img} alt={p.name} className="w-8 h-8 rounded-lg object-cover border border-[#eee2da]" />
-                              <div>
-                                <b className="text-[#59453f] block">{p.name}</b>
-                                <span className="text-[10px] text-gray-400">{categories.find((c) => c.id === p.category)?.name}</span>
-                              </div>
-                            </td>
-                            <td className="p-3 font-bold text-[#59453f]">{formatMoney(p.price)}</td>
-                            <td className="p-3 font-bold text-amber-700">{formatMoney(cost)}</td>
-                            <td className="p-3 font-bold text-emerald-700">+{formatMoney(profit)}</td>
-                            <td className="p-3">
-                              <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                {margin}%
-                              </span>
-                            </td>
-                            <td className="p-3 pr-4 text-[11px]">
-                              {Number(margin) >= 65 ? (
-                                <span className="text-emerald-700 font-bold">⭐️ Siêu lợi nhuận (Đẩy mạnh)</span>
-                              ) : Number(margin) >= 55 ? (
-                                <span className="text-blue-700 font-bold">✓ Tỉ suất sinh lời tốt</span>
-                              ) : (
-                                <span className="text-amber-700 font-bold">⚠️ Chi phí cốt bánh hơi cao</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {products
+                        .filter((p) => {
+                          const cost = p.costPrice || Math.round(p.price * 0.38);
+                          const profit = p.price - cost;
+                          const margin = (profit / p.price) * 100;
+                          if (marginFilter === 'super') return margin >= 65;
+                          if (marginFilter === 'good') return margin >= 55 && margin < 65;
+                          if (marginFilter === 'warning') return margin < 55;
+                          return true;
+                        })
+                        .sort((a, b) => {
+                          const costA = a.costPrice || Math.round(a.price * 0.38);
+                          const profitA = a.price - costA;
+                          const marginA = (profitA / a.price) * 100;
+
+                          const costB = b.costPrice || Math.round(b.price * 0.38);
+                          const profitB = b.price - costB;
+                          const marginB = (profitB / b.price) * 100;
+
+                          if (sortMargin === 'margin-desc') return marginB - marginA;
+                          if (sortMargin === 'margin-asc') return marginA - marginB;
+                          if (sortMargin === 'profit-desc') return profitB - profitA;
+                          if (sortMargin === 'cost-desc') return costB - costA;
+                          return 0;
+                        })
+                        .map((p) => {
+                          const cost = p.costPrice || Math.round(p.price * 0.38);
+                          const profit = p.price - cost;
+                          const margin = ((profit / p.price) * 100).toFixed(1);
+                          return (
+                            <tr key={p.id} className="hover:bg-gray-50/80 transition">
+                              <td className="p-3 pl-4 flex items-center gap-2.5">
+                                <img src={p.img} alt={p.name} className="w-8 h-8 rounded-lg object-cover border border-[#eee2da]" />
+                                <div>
+                                  <b className="text-[#59453f] block">{p.name}</b>
+                                  <span className="text-[10px] text-gray-400">{categories.find((c) => c.id === p.category)?.name}</span>
+                                </div>
+                              </td>
+                              <td className="p-3 font-bold text-[#59453f]">{formatMoney(p.price)}</td>
+                              <td className="p-3 font-bold text-amber-700">{formatMoney(cost)}</td>
+                              <td className="p-3 font-bold text-emerald-700">+{formatMoney(profit)}</td>
+                              <td className="p-3">
+                                <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  {margin}%
+                                </span>
+                              </td>
+                              <td className="p-3 pr-4 text-[11px]">
+                                {Number(margin) >= 65 ? (
+                                  <span className="text-emerald-700 font-bold">⭐️ Siêu lợi nhuận (Đẩy mạnh)</span>
+                                ) : Number(margin) >= 55 ? (
+                                  <span className="text-blue-700 font-bold">✓ Tỉ suất sinh lời tốt</span>
+                                ) : (
+                                  <span className="text-amber-700 font-bold">⚠️ Chi phí cốt bánh hơi cao</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -1889,37 +2005,89 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="divide-y divide-[#eee2da]">
-                  {expenses.map((exp) => (
-                    <div key={exp.id} className="p-4 flex items-center justify-between text-xs hover:bg-gray-50/80">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-[9px] uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
-                            {exp.category === 'ingredient' && 'Nguyên liệu'}
-                            {exp.category === 'packaging' && 'Hộp & Nơ'}
-                            {exp.category === 'utilities' && 'Điện / Nước'}
-                            {exp.category === 'salary' && 'Lương nhân sự'}
-                            {exp.category === 'marketing' && 'Quảng cáo'}
-                            {exp.category === 'rent' && 'Mặt bằng'}
-                            {exp.category === 'other' && 'Chi khác'}
-                          </span>
-                          <b className="text-sm text-[#59453f]">{exp.description}</b>
-                        </div>
-                        <span className="text-[11px] text-gray-400 block">Ngày ghi sổ: {exp.date}</span>
-                      </div>
+                {/* Filter & Search Bar cho Khoản Chi */}
+                <div className="p-3 bg-white border-b border-[#eee2da] flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="relative flex-1 min-w-[200px] max-w-sm">
+                    <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                    <input
+                      type="text"
+                      value={searchExpense}
+                      onChange={(e) => setSearchExpense(e.target.value)}
+                      placeholder="Tìm tên khoản chi..."
+                      className="w-full bg-gray-50 border border-gray-200 py-1.5 pl-8 pr-3 rounded-full text-xs font-bold outline-none focus:border-[#d993a1] text-[#59453f]"
+                    />
+                  </div>
 
-                      <div className="flex items-center gap-3">
-                        <b className="text-sm text-red-600 font-serif-title">-{formatMoney(exp.amount)}</b>
-                        <button
-                          onClick={() => handleDeleteExpense(exp.id, exp.description)}
-                          className="text-gray-400 hover:text-red-500 p-1"
-                          title="Xóa khoản chi"
-                        >
-                          <i className="ph ph-trash text-base"></i>
-                        </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-[#9b8982]">Loại chi phí:</span>
+                    <select
+                      value={expenseCatFilter}
+                      onChange={(e) => setExpenseCatFilter(e.target.value)}
+                      className="bg-gray-50 border border-gray-200 text-[#59453f] text-xs font-bold rounded-xl px-2.5 py-1.5 outline-none focus:border-[#c77f8e]"
+                    >
+                      <option value="all">Tất cả khoản chi</option>
+                      <option value="ingredient">Nguyên liệu bánh</option>
+                      <option value="packaging">Hộp & Nơ bao bì</option>
+                      <option value="utilities">Điện / Nước / Gas</option>
+                      <option value="salary">Lương nhân sự</option>
+                      <option value="marketing">Quảng cáo & Marketing</option>
+                      <option value="rent">Mặt bằng</option>
+                      <option value="other">Chi khác</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="divide-y divide-[#eee2da]">
+                  {expenses
+                    .filter((exp) => {
+                      const matchCat = expenseCatFilter === 'all' || exp.category === expenseCatFilter;
+                      const matchSearch =
+                        searchExpense.trim() === '' ||
+                        exp.description.toLowerCase().includes(searchExpense.toLowerCase());
+                      return matchCat && matchSearch;
+                    })
+                    .map((exp) => (
+                      <div key={exp.id} className="p-4 flex items-center justify-between text-xs hover:bg-gray-50/80">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[9px] uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
+                              {exp.category === 'ingredient' && 'Nguyên liệu'}
+                              {exp.category === 'packaging' && 'Hộp & Nơ'}
+                              {exp.category === 'utilities' && 'Điện / Nước'}
+                              {exp.category === 'salary' && 'Lương nhân sự'}
+                              {exp.category === 'marketing' && 'Quảng cáo'}
+                              {exp.category === 'rent' && 'Mặt bằng'}
+                              {exp.category === 'other' && 'Chi khác'}
+                            </span>
+                            <b className="text-sm text-[#59453f]">{exp.description}</b>
+                          </div>
+                          <span className="text-[11px] text-gray-400 block">Ngày ghi sổ: {exp.date}</span>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <b className="text-sm text-red-600 font-serif-title">-{formatMoney(exp.amount)}</b>
+                          <button
+                            onClick={() => handleDeleteExpense(exp.id, exp.description)}
+                            className="text-gray-400 hover:text-red-500 p-1"
+                            title="Xóa khoản chi"
+                          >
+                            <i className="ph ph-trash text-base"></i>
+                          </button>
+                        </div>
                       </div>
+                    ))}
+                  {expenses.filter((exp) => {
+                    const matchCat = expenseCatFilter === 'all' || exp.category === expenseCatFilter;
+                    const matchSearch =
+                      searchExpense.trim() === '' ||
+                      exp.description.toLowerCase().includes(searchExpense.toLowerCase());
+                    return matchCat && matchSearch;
+                  }).length === 0 && (
+                    <div className="p-8 text-center text-[#9b8982]">
+                      <i className="ph ph-receipt text-3xl mb-1 text-gray-300 block"></i>
+                      Không tìm thấy khoản chi nào phù hợp với bộ lọc.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>
@@ -1970,21 +2138,83 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* Search & Filter */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="relative w-full sm:w-72">
-                  <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                  <input
-                    type="text"
-                    value={searchIngredient}
-                    onChange={(e) => setSearchIngredient(e.target.value)}
-                    placeholder="Tìm tên bột, bơ, kem, dâu..."
-                    className="w-full bg-white border border-[#eee2da] py-2 pl-9 pr-3 rounded-full text-xs font-bold outline-none focus:border-[#d993a1] text-[#59453f]"
-                  />
+              {/* Search & Filter Bar */}
+              <div className="bg-white p-4 rounded-3xl border border-[#eee2da] shadow-xs space-y-3">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                  {/* Status Pills */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setStockStatusFilter('all')}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${
+                        stockStatusFilter === 'all'
+                          ? 'bg-[#59453f] text-white shadow-2xs'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Tất cả ({ingredients.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStockStatusFilter('low')}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1 ${
+                        stockStatusFilter === 'low'
+                          ? 'bg-red-600 text-white shadow-2xs'
+                          : 'bg-red-50 text-red-600 hover:bg-red-100'
+                      }`}
+                    >
+                      ⚠️ Sắp hết ({lowStockIngredients.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStockStatusFilter('normal')}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${
+                        stockStatusFilter === 'normal'
+                          ? 'bg-emerald-700 text-white shadow-2xs'
+                          : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                      }`}
+                    >
+                      ✓ Đầy đủ ({ingredients.length - lowStockIngredients.length})
+                    </button>
+                  </div>
+
+                  {/* Search, Unit & Sort */}
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="relative flex-1 sm:w-60 min-w-[160px]">
+                      <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                      <input
+                        type="text"
+                        value={searchIngredient}
+                        onChange={(e) => setSearchIngredient(e.target.value)}
+                        placeholder="Tìm tên, mã, nhà cung cấp..."
+                        className="w-full bg-gray-50 border border-gray-200 py-1.5 pl-8 pr-3 rounded-full text-xs font-bold outline-none focus:border-[#d993a1] text-[#59453f]"
+                      />
+                    </div>
+
+                    <select
+                      value={unitFilter}
+                      onChange={(e) => setUnitFilter(e.target.value)}
+                      className="bg-gray-50 border border-gray-200 text-[#59453f] text-xs font-bold rounded-xl px-2.5 py-1.5 outline-none focus:border-[#c77f8e]"
+                    >
+                      <option value="all">Tất cả đơn vị</option>
+                      {Array.from(new Set(ingredients.map((i) => i.unit))).filter(Boolean).map((u) => (
+                        <option key={u} value={u}>Đơn vị: {u}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={sortInventory}
+                      onChange={(e) => setSortInventory(e.target.value)}
+                      className="bg-gray-50 border border-gray-200 text-[#59453f] text-xs font-bold rounded-xl px-2.5 py-1.5 outline-none focus:border-[#c77f8e]"
+                    >
+                      <option value="default">Sắp xếp: Mặc định</option>
+                      <option value="stock-asc">Tồn kho ít nhất trước ↑</option>
+                      <option value="stock-desc">Tồn kho nhiều nhất trước ↓</option>
+                      <option value="value-desc">Giá trị tồn kho cao nhất ↓</option>
+                      <option value="name-asc">Tên nguyên liệu A-Z</option>
+                    </select>
+                  </div>
                 </div>
-                <span className="text-xs text-[#9b8982] font-medium hidden sm:inline">
-                  Tổng {ingredients.length} nguyên vật liệu
-                </span>
               </div>
 
               {/* Bảng Kho Nguyên Liệu */}
@@ -2005,11 +2235,28 @@ export default function AdminPage() {
                     </thead>
                     <tbody className="divide-y divide-[#eee2da]">
                       {ingredients
-                        .filter((ing) =>
-                          searchIngredient.trim() === ''
-                            ? true
-                            : ing.name.toLowerCase().includes(searchIngredient.toLowerCase())
-                        )
+                        .filter((ing) => {
+                          const isLow = ing.stockQty <= ing.minStockQty;
+                          if (stockStatusFilter === 'low' && !isLow) return false;
+                          if (stockStatusFilter === 'normal' && isLow) return false;
+                          if (unitFilter !== 'all' && ing.unit !== unitFilter) return false;
+                          if (searchIngredient.trim() !== '') {
+                            const q = searchIngredient.toLowerCase();
+                            return (
+                              ing.name.toLowerCase().includes(q) ||
+                              ing.id.toLowerCase().includes(q) ||
+                              (ing.supplier && ing.supplier.toLowerCase().includes(q))
+                            );
+                          }
+                          return true;
+                        })
+                        .sort((a, b) => {
+                          if (sortInventory === 'stock-asc') return a.stockQty - b.stockQty;
+                          if (sortInventory === 'stock-desc') return b.stockQty - a.stockQty;
+                          if (sortInventory === 'value-desc') return (b.stockQty * b.unitPrice) - (a.stockQty * a.unitPrice);
+                          if (sortInventory === 'name-asc') return a.name.localeCompare(b.name);
+                          return 0;
+                        })
                         .map((ing) => {
                           const isLow = ing.stockQty <= ing.minStockQty;
                           return (
@@ -2105,6 +2352,26 @@ export default function AdminPage() {
                         })}
                     </tbody>
                   </table>
+                  {ingredients.filter((ing) => {
+                    const isLow = ing.stockQty <= ing.minStockQty;
+                    if (stockStatusFilter === 'low' && !isLow) return false;
+                    if (stockStatusFilter === 'normal' && isLow) return false;
+                    if (unitFilter !== 'all' && ing.unit !== unitFilter) return false;
+                    if (searchIngredient.trim() !== '') {
+                      const q = searchIngredient.toLowerCase();
+                      return (
+                        ing.name.toLowerCase().includes(q) ||
+                        ing.id.toLowerCase().includes(q) ||
+                        (ing.supplier && ing.supplier.toLowerCase().includes(q))
+                      );
+                    }
+                    return true;
+                  }).length === 0 && (
+                    <div className="p-8 text-center text-[#9b8982]">
+                      <i className="ph ph-package text-3xl mb-1 text-gray-300 block"></i>
+                      Không tìm thấy nguyên vật liệu nào theo điều kiện lọc.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -2156,11 +2423,54 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {/* Date & Sort Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-[#eee2da] shadow-2xs">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-[#9b8982] flex items-center gap-1">
+                    <i className="ph ph-calendar text-xs"></i> Lọc ngày:
+                  </span>
+                  {[
+                    { id: 'all', label: 'Tất cả' },
+                    { id: 'today', label: 'Hôm nay' },
+                    { id: 'yesterday', label: 'Hôm qua' },
+                    { id: 'recent7', label: '7 ngày qua' },
+                  ].map((d) => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setOnlineDateFilter(d.id)}
+                      className={`py-1 px-2.5 text-xs font-bold rounded-lg transition-all ${
+                        onlineDateFilter === d.id
+                          ? 'bg-[#c77f8e] text-white shadow-2xs'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-[#9b8982]">Sắp xếp:</span>
+                  <select
+                    value={onlineSort}
+                    onChange={(e) => setOnlineSort(e.target.value)}
+                    className="bg-gray-50 border border-gray-200 text-[#59453f] text-xs font-bold rounded-xl px-2.5 py-1 outline-none focus:border-[#c77f8e]"
+                  >
+                    <option value="newest">Mới nhất trước ↓</option>
+                    <option value="oldest">Cũ nhất trước ↑</option>
+                    <option value="total-desc">Giá trị đơn cao nhất ↓</option>
+                    <option value="total-asc">Giá trị đơn thấp nhất ↑</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {orders
                   .filter((o) => {
                     if (o.type !== 'regular') return false;
                     if (onlineFilter !== 'all' && o.status !== onlineFilter) return false;
+                    if (!isOrderInDateRange(o, onlineDateFilter)) return false;
                     if (searchOnline.trim()) {
                       const q = searchOnline.toLowerCase();
                       return (
@@ -2170,6 +2480,18 @@ export default function AdminPage() {
                       );
                     }
                     return true;
+                  })
+                  .sort((a, b) => {
+                    if (onlineSort === 'total-desc') return b.total - a.total;
+                    if (onlineSort === 'total-asc') return a.total - b.total;
+                    if (onlineSort === 'oldest') {
+                      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                      return timeA - timeB;
+                    }
+                    const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                    const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                    return timeB - timeA;
                   })
                   .map((o) => {
                     const badge = getStatusBadge(o.status);
@@ -2266,6 +2588,26 @@ export default function AdminPage() {
                       </div>
                     );
                   })}
+                {orders.filter((o) => {
+                  if (o.type !== 'regular') return false;
+                  if (onlineFilter !== 'all' && o.status !== onlineFilter) return false;
+                  if (!isOrderInDateRange(o, onlineDateFilter)) return false;
+                  if (searchOnline.trim()) {
+                    const q = searchOnline.toLowerCase();
+                    return (
+                      o.customer.name.toLowerCase().includes(q) ||
+                      o.customer.phone.includes(q) ||
+                      o.id.toLowerCase().includes(q)
+                    );
+                  }
+                  return true;
+                }).length === 0 && (
+                  <div className="bg-white p-12 rounded-3xl border border-[#eee2da] text-center text-[#9b8982] col-span-1 lg:col-span-2">
+                    <i className="ph ph-shopping-cart text-4xl mb-2 text-gray-300 block"></i>
+                    <b className="text-sm font-bold text-[#59453f] block">Không tìm thấy đơn hàng online nào</b>
+                    <p className="text-xs mt-1">Hãy thử đổi trạng thái hoặc khoảng thời gian lọc khác.</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2315,11 +2657,43 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {/* Date Filter Controls for Event */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-[#eee2da] shadow-2xs">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-[#9b8982] flex items-center gap-1">
+                    <i className="ph ph-calendar text-xs"></i> Lọc ngày đặt:
+                  </span>
+                  {[
+                    { id: 'all', label: 'Tất cả' },
+                    { id: 'today', label: 'Hôm nay' },
+                    { id: 'yesterday', label: 'Hôm qua' },
+                    { id: 'recent7', label: '7 ngày qua' },
+                  ].map((d) => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setEventDateFilter(d.id)}
+                      className={`py-1 px-2.5 text-xs font-bold rounded-lg transition-all ${
+                        eventDateFilter === d.id
+                          ? 'bg-[#c77f8e] text-white shadow-2xs'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-xs text-[#9b8982]">
+                  Tổng: {orders.filter((o) => o.type === 'bulk').length} đơn tiệc
+                </span>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {orders
                   .filter((o) => {
                     if (o.type !== 'bulk') return false;
                     if (eventFilter !== 'all' && o.status !== eventFilter) return false;
+                    if (!isOrderInDateRange(o, eventDateFilter)) return false;
                     if (searchEvent.trim()) {
                       const q = searchEvent.toLowerCase();
                       return (
@@ -2387,6 +2761,26 @@ export default function AdminPage() {
                       </div>
                     );
                   })}
+                {orders.filter((o) => {
+                  if (o.type !== 'bulk') return false;
+                  if (eventFilter !== 'all' && o.status !== eventFilter) return false;
+                  if (!isOrderInDateRange(o, eventDateFilter)) return false;
+                  if (searchEvent.trim()) {
+                    const q = searchEvent.toLowerCase();
+                    return (
+                      o.customer.name.toLowerCase().includes(q) ||
+                      o.customer.phone.includes(q) ||
+                      o.id.toLowerCase().includes(q)
+                    );
+                  }
+                  return true;
+                }).length === 0 && (
+                  <div className="bg-white p-12 rounded-3xl border border-[#eee2da] text-center text-[#9b8982] col-span-1 lg:col-span-2">
+                    <i className="ph ph-confetti text-4xl mb-2 text-gray-300 block"></i>
+                    <b className="text-sm font-bold text-[#59453f] block">Không tìm thấy đơn tiệc sự kiện nào</b>
+                    <p className="text-xs mt-1">Hãy thử đổi trạng thái hoặc thời gian lọc khác.</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2418,6 +2812,28 @@ export default function AdminPage() {
                       </option>
                     ))}
                   </select>
+
+                  <select
+                    value={productStockFilter}
+                    onChange={(e) => setProductStockFilter(e.target.value)}
+                    className="bg-white border border-[#eee2da] py-2 px-3 rounded-full text-xs font-bold text-[#59453f] outline-none"
+                  >
+                    <option value="all">Tất cả tình trạng</option>
+                    <option value="instock">Đang mở bán</option>
+                    <option value="outofstock">Tạm hết hàng</option>
+                  </select>
+
+                  <select
+                    value={productSort}
+                    onChange={(e) => setProductSort(e.target.value)}
+                    className="bg-white border border-[#eee2da] py-2 px-3 rounded-full text-xs font-bold text-[#59453f] outline-none"
+                  >
+                    <option value="default">Thứ tự mặc định</option>
+                    <option value="price-asc">Giá tăng dần ↑</option>
+                    <option value="price-desc">Giá giảm dần ↓</option>
+                    <option value="profit-desc">Lợi nhuận cao nhất ↓</option>
+                    <option value="name-asc">Tên bánh A-Z</option>
+                  </select>
                 </div>
 
                 <div className="flex items-center gap-2.5 w-full sm:w-auto">
@@ -2442,10 +2858,28 @@ export default function AdminPage() {
                 {products
                   .filter((p) => {
                     const matchCat = productCatFilter === 'all' || p.category === productCatFilter;
+                    const matchStock =
+                      productStockFilter === 'all'
+                        ? true
+                        : productStockFilter === 'instock'
+                        ? p.inStock
+                        : !p.inStock;
                     const matchQuery =
                       searchProduct.trim() === '' ||
                       p.name.toLowerCase().includes(searchProduct.toLowerCase());
-                    return matchCat && matchQuery;
+                    return matchCat && matchStock && matchQuery;
+                  })
+                  .sort((a, b) => {
+                    const costA = a.costPrice || Math.round(a.price * 0.38);
+                    const profitA = a.price - costA;
+                    const costB = b.costPrice || Math.round(b.price * 0.38);
+                    const profitB = b.price - costB;
+
+                    if (productSort === 'price-asc') return a.price - b.price;
+                    if (productSort === 'price-desc') return b.price - a.price;
+                    if (productSort === 'profit-desc') return profitB - profitA;
+                    if (productSort === 'name-asc') return a.name.localeCompare(b.name);
+                    return 0;
                   })
                   .map((p) => {
                     const cost = p.costPrice || Math.round(p.price * 0.38);
@@ -2501,6 +2935,25 @@ export default function AdminPage() {
                       </div>
                     );
                   })}
+                {products.filter((p) => {
+                  const matchCat = productCatFilter === 'all' || p.category === productCatFilter;
+                  const matchStock =
+                    productStockFilter === 'all'
+                      ? true
+                      : productStockFilter === 'instock'
+                      ? p.inStock
+                      : !p.inStock;
+                  const matchQuery =
+                    searchProduct.trim() === '' ||
+                    p.name.toLowerCase().includes(searchProduct.toLowerCase());
+                  return matchCat && matchStock && matchQuery;
+                }).length === 0 && (
+                  <div className="bg-white p-12 rounded-3xl border border-[#eee2da] text-center text-[#9b8982] col-span-full">
+                    <i className="ph ph-cake text-4xl mb-2 text-gray-300 block"></i>
+                    <b className="text-sm font-bold text-[#59453f] block">Không tìm thấy mẫu bánh nào</b>
+                    <p className="text-xs mt-1">Vui lòng thử đổi nhóm bánh, tình trạng kho hoặc từ khóa tìm kiếm.</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
