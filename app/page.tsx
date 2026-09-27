@@ -258,12 +258,6 @@ export default function StorefrontPage() {
               <a href="#event" className="hover:text-[#e6a8b7] transition-colors">
                 Đặt tiệc sự kiện
               </a>
-              <Link
-                href="/admin"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#fbf6f0] border border-[#eee2da] text-xs font-bold text-[#59453f] hover:bg-[#59453f] hover:text-white transition-all"
-              >
-                <i className="ph ph-shield-check text-base"></i> Quản trị
-              </Link>
             </nav>
 
             {/* Cart Button */}
@@ -328,13 +322,6 @@ export default function StorefrontPage() {
             >
               Đặt tiệc & Sự kiện
             </a>
-            <Link
-              href="/admin"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="inline-flex items-center gap-2 text-xs font-bold text-[#59453f] bg-[#fbf6f0] px-4 py-2 rounded-full border border-[#eee2da]"
-            >
-              <i className="ph ph-shield-check text-base"></i> Vào trang quản trị tiệm
-            </Link>
           </div>
         )}
       </header>
@@ -673,11 +660,6 @@ export default function StorefrontPage() {
                   <a href="#event" className="hover:text-[#e6a8b7]">
                     Đặt tiệc teabreak
                   </a>
-                </li>
-                <li>
-                  <Link href="/admin" className="hover:text-[#e6a8b7] font-semibold text-[#5c4d4d]">
-                    Hệ thống quản trị tiệm
-                  </Link>
                 </li>
               </ul>
             </div>
