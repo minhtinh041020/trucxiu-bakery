@@ -2,10 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Category, Order, OrderStatus, Product, StoreSettings } from '@/types/bakery';
+import {
+  Category,
+  Expense,
+  ExpenseCategory,
+  FinancialReport,
+  Ingredient,
+  Order,
+  OrderStatus,
+  Product,
+  StoreSettings,
+} from '@/types/bakery';
 import {
   DataService,
   initialCategories,
+  initialExpenses,
+  initialIngredients,
   initialOrders,
   initialProducts,
   initialSettings,
@@ -19,17 +31,26 @@ export default function AdminPage() {
   const [pinInput, setPinInput] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
 
-  // Main state
+  // Main navigation tab
   const [currentTab, setCurrentTab] = useState<
-    'dashboard' | 'orders-online' | 'orders-event' | 'products' | 'categories' | 'settings'
+    | 'dashboard'
+    | 'orders-online'
+    | 'orders-event'
+    | 'products'
+    | 'categories'
+    | 'finance'
+    | 'inventory'
+    | 'settings'
   >('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
-  // App data
+  // App datasets
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [settings, setSettings] = useState<StoreSettings>(initialSettings);
+  const [ingredients, setIngredients] = useState<Ingredient[]>(initialIngredients);
+  const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [liveClock, setLiveClock] = useState<string>('');
 
   // Filter states
@@ -38,6 +59,7 @@ export default function AdminPage() {
   const [searchOnline, setSearchOnline] = useState<string>('');
   const [searchEvent, setSearchEvent] = useState<string>('');
   const [searchProduct, setSearchProduct] = useState<string>('');
+  const [searchIngredient, setSearchIngredient] = useState<string>('');
   const [productCatFilter, setProductCatFilter] = useState<string>('all');
 
   // Modals
@@ -55,9 +77,27 @@ export default function AdminPage() {
   const [manualNote, setManualNote] = useState<string>('');
   const [manualCart, setManualCart] = useState<Record<number, number>>({});
 
+  // Kế toán: Expense Modal
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState<boolean>(false);
+  const [expCategory, setExpCategory] = useState<ExpenseCategory>('ingredient');
+  const [expDesc, setExpDesc] = useState<string>('');
+  const [expAmount, setExpAmount] = useState<string>('');
+  const [expDate, setExpDate] = useState<string>('');
+
+  // Kho: Ingredient Modal
+  const [isIngredientModalOpen, setIsIngredientModalOpen] = useState<boolean>(false);
+  const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
+  const [ingName, setIngName] = useState<string>('');
+  const [ingUnit, setIngUnit] = useState<string>('kg');
+  const [ingUnitPrice, setIngUnitPrice] = useState<string>('');
+  const [ingStockQty, setIngStockQty] = useState<string>('');
+  const [ingMinStockQty, setIngMinStockQty] = useState<string>('5');
+  const [ingSupplier, setIngSupplier] = useState<string>('');
+
   // Product form inputs
   const [prodFormName, setProdFormName] = useState<string>('');
   const [prodFormPrice, setProdFormPrice] = useState<string>('');
+  const [prodFormCostPrice, setProdFormCostPrice] = useState<string>(''); // Giá vốn
   const [prodFormCat, setProdFormCat] = useState<string>('cake');
   const [prodFormImg, setProdFormImg] = useState<string>('');
   const [prodFormDesc, setProdFormDesc] = useState<string>('');
@@ -123,19 +163,23 @@ export default function AdminPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Fetch data & subscribe realtime
+  // Fetch all data & Realtime sync
   const refreshAllData = async () => {
-    const [prods, cats, ords, sett] = await Promise.all([
+    const [prods, cats, ords, sett, ings, exps] = await Promise.all([
       DataService.getProducts(),
       DataService.getCategories(),
       DataService.getOrders(),
       DataService.getSettings(),
+      DataService.getIngredients(),
+      DataService.getExpenses(),
     ]);
     setProducts(prods);
     setCategories(cats);
     setOrders(ords);
     setSettings(sett);
     setSettingForm(sett);
+    setIngredients(ings);
+    setExpenses(exps);
   };
 
   useEffect(() => {
@@ -151,40 +195,19 @@ export default function AdminPage() {
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
       case 'pending':
-        return {
-          bg: 'bg-amber-50 text-amber-700 border-amber-200',
-          label: 'Chờ duyệt',
-        };
+        return { bg: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Chờ duyệt' };
       case 'processing':
-        return {
-          bg: 'bg-blue-50 text-blue-700 border-blue-200',
-          label: 'Đang làm bánh',
-        };
+        return { bg: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Đang làm bánh' };
       case 'shipping':
-        return {
-          bg: 'bg-purple-50 text-purple-700 border-purple-200',
-          label: 'Đang giao',
-        };
+        return { bg: 'bg-purple-50 text-purple-700 border-purple-200', label: 'Đang giao' };
       case 'completed':
-        return {
-          bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-          label: 'Hoàn tất',
-        };
+        return { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Hoàn tất' };
       case 'contacted':
-        return {
-          bg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-          label: 'Đã liên hệ',
-        };
+        return { bg: 'bg-indigo-50 text-indigo-700 border-indigo-200', label: 'Đã liên hệ' };
       case 'cancelled':
-        return {
-          bg: 'bg-red-50 text-red-600 border-red-200',
-          label: 'Đã hủy',
-        };
+        return { bg: 'bg-red-50 text-red-600 border-red-200', label: 'Đã hủy' };
       default:
-        return {
-          bg: 'bg-gray-50 text-gray-700 border-gray-200',
-          label: status,
-        };
+        return { bg: 'bg-gray-50 text-gray-700 border-gray-200', label: status };
     }
   };
 
@@ -200,6 +223,7 @@ export default function AdminPage() {
       setEditingProduct(prod);
       setProdFormName(prod.name);
       setProdFormPrice(prod.price.toString());
+      setProdFormCostPrice((prod.costPrice || Math.round(prod.price * 0.38)).toString());
       setProdFormCat(prod.category);
       setProdFormImg(prod.img);
       setProdFormDesc(prod.desc);
@@ -208,10 +232,9 @@ export default function AdminPage() {
       setEditingProduct(null);
       setProdFormName('');
       setProdFormPrice('');
+      setProdFormCostPrice('');
       setProdFormCat(categories[0]?.id || 'cake');
-      setProdFormImg(
-        'https://images.unsplash.com/photo-1559620192-032c4bc4674e?auto=format&fit=crop&w=600&q=80'
-      );
+      setProdFormImg('https://images.unsplash.com/photo-1559620192-032c4bc4674e?auto=format&fit=crop&w=600&q=80');
       setProdFormDesc('');
       setProdFormInStock(true);
     }
@@ -221,15 +244,18 @@ export default function AdminPage() {
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prodFormName.trim() || !prodFormPrice.trim()) {
-      alert('Vui lòng nhập tên và giá sản phẩm.');
+      alert('Vui lòng nhập tên và giá bán sản phẩm.');
       return;
     }
 
-    const price = parseInt(prodFormPrice.replace(/\D/g, ''), 10);
+    const price = parseInt(prodFormPrice.replace(/\D/g, ''), 10) || 0;
+    const costPrice = parseInt(prodFormCostPrice.replace(/\D/g, ''), 10) || Math.round(price * 0.38);
+
     const prod: Product = {
       id: editingProduct ? editingProduct.id : Date.now(),
       name: prodFormName.trim(),
-      price: price || 0,
+      price: price,
+      costPrice: costPrice,
       category: prodFormCat,
       img: prodFormImg.trim(),
       desc: prodFormDesc.trim(),
@@ -312,9 +338,17 @@ export default function AdminPage() {
     const items = Object.entries(manualCart)
       .map(([idStr, qty]) => {
         const prod = products.find((p) => p.id === parseInt(idStr, 10));
-        return prod && qty > 0 ? { name: prod.name, qty, price: prod.price, img: prod.img } : null;
+        return prod && qty > 0
+          ? {
+              name: prod.name,
+              qty,
+              price: prod.price,
+              costPrice: prod.costPrice,
+              img: prod.img,
+            }
+          : null;
       })
-      .filter(Boolean) as { name: string; qty: number; price: number; img: string }[];
+      .filter(Boolean) as { name: string; qty: number; price: number; costPrice?: number; img: string }[];
 
     if (items.length === 0) {
       alert('Vui lòng chọn ít nhất 1 món bánh.');
@@ -328,9 +362,8 @@ export default function AdminPage() {
       items,
       total: manualOrderTotal,
       note: manualNote.trim() || 'Đơn tạo trực tiếp tại quầy',
-      status: 'pending',
-      time:
-        new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' Hôm nay',
+      status: 'completed', // Đơn tại quầy hoàn tất ngay
+      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' Hôm nay',
       created_at: new Date().toISOString(),
     };
 
@@ -344,6 +377,104 @@ export default function AdminPage() {
     refreshAllData();
   };
 
+  // Kế toán: Expense Handlers
+  const handleSaveExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!expDesc.trim() || !expAmount.trim()) {
+      alert('Vui lòng nhập nội dung chi và số tiền.');
+      return;
+    }
+    const amount = parseInt(expAmount.replace(/\D/g, ''), 10) || 0;
+    const newExp: Expense = {
+      id: 'EXP-' + Math.floor(100 + Math.random() * 900),
+      category: expCategory,
+      description: expDesc.trim(),
+      amount,
+      date: expDate || new Date().toLocaleDateString('vi-VN'),
+      created_at: new Date().toISOString(),
+    };
+
+    await DataService.addExpense(newExp);
+    setIsExpenseModalOpen(false);
+    setExpDesc('');
+    setExpAmount('');
+    setExpDate('');
+    showToast(`Đã ghi nhận khoản chi ${formatMoney(amount)}`);
+    refreshAllData();
+  };
+
+  const handleDeleteExpense = async (id: string, desc: string) => {
+    if (confirm(`Bạn có chắc muốn xóa khoản chi "${desc}"?`)) {
+      await DataService.deleteExpense(id);
+      showToast('Đã xóa khoản chi');
+      refreshAllData();
+    }
+  };
+
+  // Kho: Ingredient Handlers
+  const openIngredientModal = (ing?: Ingredient) => {
+    if (ing) {
+      setEditingIngredient(ing);
+      setIngName(ing.name);
+      setIngUnit(ing.unit);
+      setIngUnitPrice(ing.unitPrice.toString());
+      setIngStockQty(ing.stockQty.toString());
+      setIngMinStockQty(ing.minStockQty.toString());
+      setIngSupplier(ing.supplier || '');
+    } else {
+      setEditingIngredient(null);
+      setIngName('');
+      setIngUnit('kg');
+      setIngUnitPrice('');
+      setIngStockQty('');
+      setIngMinStockQty('5');
+      setIngSupplier('');
+    }
+    setIsIngredientModalOpen(true);
+  };
+
+  const handleSaveIngredient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ingName.trim() || !ingUnitPrice.trim() || !ingStockQty.trim()) {
+      alert('Vui lòng nhập đầy đủ tên, giá nhập và số lượng tồn.');
+      return;
+    }
+    const unitPrice = parseInt(ingUnitPrice.replace(/\D/g, ''), 10) || 0;
+    const stockQty = parseFloat(ingStockQty) || 0;
+    const minStockQty = parseFloat(ingMinStockQty) || 5;
+
+    const item: Ingredient = {
+      id: editingIngredient ? editingIngredient.id : 'ING-' + Math.floor(10 + Math.random() * 90),
+      name: ingName.trim(),
+      unit: ingUnit.trim(),
+      unitPrice,
+      stockQty,
+      minStockQty,
+      supplier: ingSupplier.trim(),
+      updated_at: new Date().toISOString(),
+    };
+
+    await DataService.addOrUpdateIngredient(item);
+    setIsIngredientModalOpen(false);
+    showToast(editingIngredient ? `Đã cập nhật ${item.name}` : `Đã thêm nguyên liệu ${item.name}`);
+    refreshAllData();
+  };
+
+  const handleQuickAdjustStock = async (ing: Ingredient, delta: number) => {
+    const newQty = Math.max(0, ing.stockQty + delta);
+    await DataService.addOrUpdateIngredient({ ...ing, stockQty: newQty });
+    showToast(`${delta > 0 ? 'Nhập thêm' : 'Xuất'} ${Math.abs(delta)} ${ing.unit} ${ing.name}`);
+    refreshAllData();
+  };
+
+  const handleDeleteIngredient = async (id: string, name: string) => {
+    if (confirm(`Bạn có chắc muốn xóa nguyên liệu "${name}"?`)) {
+      await DataService.deleteIngredient(id);
+      showToast(`Đã xóa nguyên liệu "${name}"`);
+      refreshAllData();
+    }
+  };
+
   // Settings save
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -352,23 +483,25 @@ export default function AdminPage() {
     refreshAllData();
   };
 
-  // Backup export / import / reset
+  // Backup & Restore
   const exportBackup = () => {
     const data = {
       categories,
       products,
       orders,
       settings,
+      ingredients,
+      expenses,
       exportDate: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `trucxin-bakery-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `trucxin-bakery-accounting-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Đã tải xuống file sao lưu!');
+    showToast('Đã tải xuống file sao lưu đầy đủ!');
   };
 
   const importBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -382,6 +515,8 @@ export default function AdminPage() {
           if (parsed.categories) await DataService.saveCategories(parsed.categories);
           if (parsed.products) await DataService.saveProducts(parsed.products);
           if (parsed.settings) await DataService.saveSettings(parsed.settings);
+          if (parsed.ingredients) await DataService.saveIngredients(parsed.ingredients);
+          if (parsed.expenses) await DataService.saveExpenses(parsed.expenses);
           showToast('Khôi phục dữ liệu thành công!');
           refreshAllData();
         } else {
@@ -395,22 +530,31 @@ export default function AdminPage() {
   };
 
   const handleResetDefaults = async () => {
-    if (confirm('Bạn có muốn khôi phục toàn bộ dữ liệu mẫu ban đầu không?')) {
+    if (confirm('Bạn có muốn khôi phục toàn bộ dữ liệu mẫu (sản phẩm, kho nguyên liệu, thu chi) ban đầu không?')) {
       await DataService.saveCategories(initialCategories);
       await DataService.saveProducts(initialProducts);
       await DataService.saveSettings(initialSettings);
+      await DataService.saveIngredients(initialIngredients);
+      await DataService.saveExpenses(initialExpenses);
       localStorage.setItem('TX_ORDERS', JSON.stringify(initialOrders));
       showToast('Đã khôi phục dữ liệu mẫu ban đầu!');
       refreshAllData();
     }
   };
 
-  // Dashboard calculations
+  // Tính toán Báo cáo Kế toán Tài chính
+  const finReport: FinancialReport = DataService.calculateFinancialReport(
+    orders,
+    products,
+    expenses,
+    ingredients
+  );
+
   const onlinePendingCount = orders.filter((o) => o.type === 'regular' && o.status === 'pending').length;
   const eventPendingCount = orders.filter((o) => o.type === 'bulk' && o.status === 'pending').length;
-  const completedOrders = orders.filter((o) => o.status === 'completed');
-  const totalRevenue = completedOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const lowStockIngredients = ingredients.filter((ing) => ing.stockQty <= ing.minStockQty);
 
+  // Loading barrier during client hydration
   if (!isMounted) {
     return (
       <div className="min-h-screen bg-[#fbf6f0] flex items-center justify-center p-4">
@@ -428,8 +572,8 @@ export default function AdminPage() {
             <i className="ph-fill ph-lock-key"></i>
           </div>
           <div>
-            <h1 className="font-serif-title font-bold text-2xl text-[#59453f]">Quản Trị Hệ Thống</h1>
-            <p className="text-xs text-[#9b8982] mt-1">Trúc Xíu Bakery - Trang dành riêng cho Chủ tiệm</p>
+            <h1 className="font-serif-title font-bold text-2xl text-[#59453f]">Quản Trị & Kế Toán Tiệm</h1>
+            <p className="text-xs text-[#9b8982] mt-1">Trúc Xíu Bakery - Hệ thống Giám sát Doanh thu & Lời/Lỗ</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -465,7 +609,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-[#fbf6f0] text-[#59453f] flex flex-col lg:flex-row">
-      {/* Toast */}
+      {/* Toast Notification */}
       {toastMsg && (
         <div className="fixed top-5 right-5 z-[9999] bg-[#59453f] text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold animate-in fade-in slide-in-from-top-4 duration-200">
           <i className="ph-fill ph-check-circle text-lg text-[#d993a1]"></i>
@@ -487,7 +631,7 @@ export default function AdminPage() {
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="space-y-6">
+        <div className="space-y-5 overflow-y-auto hide-scrollbar">
           {/* Header Brand */}
           <div className="flex items-center justify-between pb-4 border-b border-[#eee2da]">
             <div className="flex items-center gap-3">
@@ -502,7 +646,7 @@ export default function AdminPage() {
                 </b>
                 <span className="text-[10px] text-[#9b8982] flex items-center gap-1 mt-0.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-                  Hệ thống trực tuyến
+                  Kế toán & Quản trị
                 </span>
               </div>
             </div>
@@ -515,7 +659,7 @@ export default function AdminPage() {
           </div>
 
           {/* Navigation Links */}
-          <nav className="space-y-1.5">
+          <nav className="space-y-1">
             <button
               onClick={() => {
                 setCurrentTab('dashboard');
@@ -530,6 +674,48 @@ export default function AdminPage() {
               <span className="flex items-center gap-2.5">
                 <i className="ph ph-squares-four text-lg"></i> Màn hình chính
               </span>
+            </button>
+
+            {/* TAB KẾ TOÁN & TÀI CHÍNH */}
+            <button
+              onClick={() => {
+                setCurrentTab('finance');
+                setIsSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+                currentTab === 'finance'
+                  ? 'bg-[#f7e6e9] text-[#59453f] border-l-4 border-[#c77f8e]'
+                  : 'text-[#9b8982] hover:bg-gray-50'
+              }`}
+            >
+              <span className="flex items-center gap-2.5">
+                <i className="ph-fill ph-chart-line-up text-lg text-[#c77f8e]"></i> Tài chính & Lời / Lỗ
+              </span>
+              <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md font-bold">
+                P&L
+              </span>
+            </button>
+
+            {/* TAB KHO NGUYÊN VẬT LIỆU */}
+            <button
+              onClick={() => {
+                setCurrentTab('inventory');
+                setIsSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+                currentTab === 'inventory'
+                  ? 'bg-[#f7e6e9] text-[#59453f] border-l-4 border-[#c77f8e]'
+                  : 'text-[#9b8982] hover:bg-gray-50'
+              }`}
+            >
+              <span className="flex items-center gap-2.5">
+                <i className="ph-fill ph-archive-box text-lg text-amber-600"></i> Kho nguyên vật liệu
+              </span>
+              {lowStockIngredients.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-bold animate-pulse">
+                  {lowStockIngredients.length}
+                </span>
+              )}
             </button>
 
             <button
@@ -626,7 +812,7 @@ export default function AdminPage() {
         </div>
 
         {/* Bottom Actions */}
-        <div className="space-y-3 pt-4 border-t border-[#eee2da]">
+        <div className="space-y-3 pt-3 border-t border-[#eee2da]">
           <button
             onClick={() => setIsManualOrderOpen(true)}
             className="w-full py-2.5 rounded-2xl bg-[#59453f] hover:bg-[#c77f8e] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all"
@@ -667,6 +853,8 @@ export default function AdminPage() {
             <div>
               <h2 className="font-serif-title font-bold text-lg sm:text-xl text-[#59453f] capitalize">
                 {currentTab === 'dashboard' && 'Màn hình chính'}
+                {currentTab === 'finance' && 'Kế toán & Báo cáo Lời / Lỗ'}
+                {currentTab === 'inventory' && 'Quản lý Kho Nguyên vật liệu'}
                 {currentTab === 'orders-online' && 'Đơn hàng Online'}
                 {currentTab === 'orders-event' && 'Đơn tiệc sự kiện'}
                 {currentTab === 'products' && 'Thực đơn bánh'}
@@ -678,18 +866,12 @@ export default function AdminPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Database indicator */}
             <span
               className={`px-3 py-1 rounded-full text-[10px] font-bold border flex items-center gap-1.5 ${
                 isSupabaseConfigured()
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   : 'bg-amber-50 text-amber-700 border-amber-200'
               }`}
-              title={
-                isSupabaseConfigured()
-                  ? 'Đang kết nối Supabase Cloud Database Realtime'
-                  : 'Đang chạy bộ nhớ Local (Thêm biến SUPABASE vào .env.local để kích hoạt Cloud)'
-              }
             >
               <span
                 className={`w-2 h-2 rounded-full ${
@@ -712,72 +894,77 @@ export default function AdminPage() {
 
         {/* Tab Body */}
         <div className="p-4 sm:p-8 space-y-6 flex-1">
-          {/* TAB 1: DASHBOARD */}
+          {/* TAB 1: DASHBOARD (NÂNG CẤP CHỈ SỐ KẾ TOÁN) */}
           {currentTab === 'dashboard' && (
             <div className="space-y-6">
-              {/* Stat Cards */}
+              {/* Stat Cards - Tài chính & Vận hành */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-[#fffdf9] p-5 rounded-3xl border border-[#eee2da] shadow-xs space-y-2">
+                <div className="bg-[#fffdf9] p-5 rounded-3xl border border-[#eee2da] shadow-xs space-y-1.5">
                   <div className="flex justify-between items-center text-xs font-bold text-[#9b8982]">
-                    <span>DOANH THU ĐÃ THU</span>
+                    <span>DOANH THU THUẦN</span>
                     <i className="ph ph-currency-circle-dollar text-xl text-[#c77f8e]"></i>
                   </div>
                   <b className="font-serif-title text-xl sm:text-2xl text-[#59453f] block">
-                    {formatMoney(totalRevenue)}
+                    {formatMoney(finReport.totalRevenue)}
                   </b>
                   <span className="text-[10px] text-emerald-600 font-bold block">
-                    Từ {completedOrders.length} đơn hoàn tất
+                    Đã xuất kho giao thành công
                   </span>
                 </div>
 
-                <div className="bg-[#fffdf9] p-5 rounded-3xl border border-[#eee2da] shadow-xs space-y-2">
+                <div className="bg-[#fffdf9] p-5 rounded-3xl border border-[#eee2da] shadow-xs space-y-1.5">
                   <div className="flex justify-between items-center text-xs font-bold text-[#9b8982]">
-                    <span>ONLINE CHỜ DUYỆT</span>
-                    <i className="ph ph-shopping-bag text-xl text-[#d993a1]"></i>
+                    <span>LÃI RÒNG THỰC TẾ (NET)</span>
+                    <i className="ph-fill ph-chart-line-up text-xl text-emerald-600"></i>
+                  </div>
+                  <b
+                    className={`font-serif-title text-xl sm:text-2xl block ${
+                      finReport.netProfit >= 0 ? 'text-emerald-700' : 'text-red-600'
+                    }`}
+                  >
+                    {formatMoney(finReport.netProfit)}
+                  </b>
+                  <span className="text-[10px] text-emerald-700 font-bold block">
+                    Biên lãi ròng: {finReport.netMargin}%
+                  </span>
+                </div>
+
+                <div className="bg-[#fffdf9] p-5 rounded-3xl border border-[#eee2da] shadow-xs space-y-1.5">
+                  <div className="flex justify-between items-center text-xs font-bold text-[#9b8982]">
+                    <span>GIÁ TRỊ KHO NGUYÊN LIỆU</span>
+                    <i className="ph ph-package text-xl text-amber-600"></i>
                   </div>
                   <b className="font-serif-title text-xl sm:text-2xl text-[#59453f] block">
-                    {onlinePendingCount} đơn
+                    {formatMoney(finReport.inventoryValue)}
                   </b>
                   <button
-                    onClick={() => setCurrentTab('orders-online')}
+                    onClick={() => setCurrentTab('inventory')}
                     className="text-[10px] text-[#c77f8e] font-bold hover:underline"
                   >
-                    Xem đơn ngay →
+                    {lowStockIngredients.length > 0 ? (
+                      <span className="text-red-500 font-bold">⚠️ Có {lowStockIngredients.length} món sắp hết!</span>
+                    ) : (
+                      'Tồn kho an toàn →'
+                    )}
                   </button>
                 </div>
 
-                <div className="bg-[#fffdf9] p-5 rounded-3xl border border-[#eee2da] shadow-xs space-y-2">
+                <div className="bg-[#fffdf9] p-5 rounded-3xl border border-[#eee2da] shadow-xs space-y-1.5">
                   <div className="flex justify-between items-center text-xs font-bold text-[#9b8982]">
-                    <span>TIỆC CHỜ BÁO GIÁ</span>
-                    <i className="ph ph-crown text-xl text-[#8e6fad]"></i>
+                    <span>ĐƠN CHỜ XỬ LÝ</span>
+                    <i className="ph ph-bell-ringing text-xl text-[#d993a1]"></i>
                   </div>
                   <b className="font-serif-title text-xl sm:text-2xl text-[#59453f] block">
-                    {eventPendingCount} đơn
-                  </b>
-                  <button
-                    onClick={() => setCurrentTab('orders-event')}
-                    className="text-[10px] text-[#8e6fad] font-bold hover:underline"
-                  >
-                    Xem yêu cầu →
-                  </button>
-                </div>
-
-                <div className="bg-[#fffdf9] p-5 rounded-3xl border border-[#eee2da] shadow-xs space-y-2">
-                  <div className="flex justify-between items-center text-xs font-bold text-[#9b8982]">
-                    <span>MẪU BÁNH TRÊN MENU</span>
-                    <i className="ph ph-cake text-xl text-amber-600"></i>
-                  </div>
-                  <b className="font-serif-title text-xl sm:text-2xl text-[#59453f] block">
-                    {products.length} mẫu
+                    {onlinePendingCount + eventPendingCount} đơn
                   </b>
                   <span className="text-[10px] text-[#9b8982] block">
-                    Trong {categories.length} nhóm bánh
+                    {onlinePendingCount} online · {eventPendingCount} tiệc
                   </span>
                 </div>
               </div>
 
               {/* Quick Actions Bar */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <button
                   onClick={() => setIsManualOrderOpen(true)}
                   className="bg-[#fffdf9] p-4 rounded-2xl border border-[#eee2da] hover:border-[#c77f8e] flex items-center gap-3 text-left transition-all"
@@ -787,33 +974,48 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <b className="block text-xs font-bold text-[#59453f]">Tạo đơn tại quầy</b>
-                    <span className="text-[11px] text-[#9b8982]">Khách mua trực tiếp tiệm</span>
+                    <span className="text-[11px] text-[#9b8982]">Bán trực tiếp tiệm</span>
                   </div>
                 </button>
 
                 <button
-                  onClick={() => openProductModal()}
+                  onClick={() => {
+                    setIsExpenseModalOpen(true);
+                  }}
                   className="bg-[#fffdf9] p-4 rounded-2xl border border-[#eee2da] hover:border-[#c77f8e] flex items-center gap-3 text-left transition-all"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-[#f4dfe1] text-[#c77f8e] flex items-center justify-center text-xl shrink-0">
-                    <i className="ph ph-cake"></i>
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center text-xl shrink-0">
+                    <i className="ph ph-receipt"></i>
                   </div>
                   <div>
-                    <b className="block text-xs font-bold text-[#59453f]">Thêm mẫu bánh mới</b>
-                    <span className="text-[11px] text-[#9b8982]">Đăng bánh lên thực đơn</span>
+                    <b className="block text-xs font-bold text-[#59453f]">Ghi khoản chi mới</b>
+                    <span className="text-[11px] text-[#9b8982]">Tiền điện, hộp, sữa...</span>
                   </div>
                 </button>
 
                 <button
-                  onClick={() => setCurrentTab('settings')}
+                  onClick={() => openIngredientModal()}
                   className="bg-[#fffdf9] p-4 rounded-2xl border border-[#eee2da] hover:border-[#c77f8e] flex items-center gap-3 text-left transition-all"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-[#f4dfe1] text-[#c77f8e] flex items-center justify-center text-xl shrink-0">
-                    <i className="ph ph-gear"></i>
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center text-xl shrink-0">
+                    <i className="ph ph-archive-box"></i>
                   </div>
                   <div>
-                    <b className="block text-xs font-bold text-[#59453f]">Cấu hình & Sao lưu</b>
-                    <span className="text-[11px] text-[#9b8982]">Đổi banner, thông tin tiệm</span>
+                    <b className="block text-xs font-bold text-[#59453f]">Nhập kho nguyên liệu</b>
+                    <span className="text-[11px] text-[#9b8982]">Bột, bơ, kem whipping</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setCurrentTab('finance')}
+                  className="bg-[#fffdf9] p-4 rounded-2xl border border-[#eee2da] hover:border-[#c77f8e] flex items-center gap-3 text-left transition-all"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center text-xl shrink-0">
+                    <i className="ph ph-chart-donut"></i>
+                  </div>
+                  <div>
+                    <b className="block text-xs font-bold text-[#59453f]">Xem Báo cáo Lời/Lỗ</b>
+                    <span className="text-[11px] text-[#9b8982]">Chi tiết biên lợi nhuận</span>
                   </div>
                 </button>
               </div>
@@ -847,9 +1049,7 @@ export default function AdminPage() {
                             </b>
                             <span
                               className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                                o.type === 'regular'
-                                  ? 'bg-[#f4dfe1] text-[#c77f8e]'
-                                  : 'bg-[#f6f0fb] text-[#8e6fad]'
+                                o.type === 'regular' ? 'bg-[#f4dfe1] text-[#c77f8e]' : 'bg-[#f6f0fb] text-[#8e6fad]'
                               }`}
                             >
                               {o.type === 'regular' ? 'ONLINE' : 'TIỆC'}
@@ -865,9 +1065,7 @@ export default function AdminPage() {
                           <span className="font-bold text-xs sm:text-sm text-[#59453f]">
                             {o.total === 0 ? 'Chờ báo giá' : formatMoney(o.total)}
                           </span>
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badge.bg}`}
-                          >
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badge.bg}`}>
                             {badge.label}
                           </span>
                           <button
@@ -885,11 +1083,330 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* TAB MỚI: KẾ TOÁN & BÁO CÁO LỜI LỖ (P&L STATEMENT) */}
+          {currentTab === 'finance' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-5 rounded-3xl border border-[#eee2da] shadow-xs">
+                <div>
+                  <h3 className="font-serif-title font-bold text-lg text-[#59453f] flex items-center gap-2">
+                    <i className="ph-fill ph-calculator text-2xl text-[#c77f8e]"></i> Báo Cáo Kế Toán & Hiệu Quả Kinh Doanh
+                  </h3>
+                  <p className="text-xs text-[#9b8982] mt-0.5">
+                    Hệ thống tự động tính toán Doanh thu, Giá vốn nguyên liệu bánh (COGS), Chi phí vận hành và Lợi nhuận ròng.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsExpenseModalOpen(true)}
+                  className="px-5 py-2.5 rounded-full bg-[#59453f] hover:bg-[#c77f8e] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition"
+                >
+                  <i className="ph ph-plus-circle text-base"></i> Ghi Nhận Khoản Chi Mới
+                </button>
+              </div>
+
+              {/* BẢNG TỔNG HỢP P&L (PROFIT & LOSS STATEMENT) */}
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3.5">
+                <div className="bg-white p-4 rounded-3xl border border-[#eee2da] shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold text-[#9b8982] uppercase block">1. Doanh thu thuần</span>
+                  <b className="font-serif-title text-xl text-[#59453f] block">{formatMoney(finReport.totalRevenue)}</b>
+                  <span className="text-[10px] text-gray-400">Từ các đơn hàng thành công</span>
+                </div>
+
+                <div className="bg-white p-4 rounded-3xl border border-[#eee2da] shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold text-[#9b8982] uppercase block">2. Giá vốn bánh (COGS)</span>
+                  <b className="font-serif-title text-xl text-amber-700 block">-{formatMoney(finReport.totalCOGS)}</b>
+                  <span className="text-[10px] text-amber-600 font-medium">Bột, bơ, kem, dâu, trứng...</span>
+                </div>
+
+                <div className="bg-white p-4 rounded-3xl border border-[#eee2da] shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold text-[#9b8982] uppercase block">3. Lợi nhuận gộp</span>
+                  <b className="font-serif-title text-xl text-blue-700 block">{formatMoney(finReport.grossProfit)}</b>
+                  <span className="text-[10px] text-blue-600 font-bold">Biên lãi gộp: {finReport.grossMargin}%</span>
+                </div>
+
+                <div className="bg-white p-4 rounded-3xl border border-[#eee2da] shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold text-[#9b8982] uppercase block">4. Chi phí vận hành</span>
+                  <b className="font-serif-title text-xl text-red-600 block">-{formatMoney(finReport.totalExpenses)}</b>
+                  <span className="text-[10px] text-red-500 font-medium">Điện, hộp, mặt bằng, lương</span>
+                </div>
+
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-4 rounded-3xl border border-emerald-200 shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold text-emerald-800 uppercase block">5. LÃI RÒNG THỰC NHẬN</span>
+                  <b className={`font-serif-title text-xl block ${finReport.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {formatMoney(finReport.netProfit)}
+                  </b>
+                  <span className="text-[10px] text-emerald-700 font-bold">Tỉ suất lợi nhuận: {finReport.netMargin}%</span>
+                </div>
+              </div>
+
+              {/* BẢNG PHÂN TÍCH LỜI LỖ THEO TỪNG MÓN BÁNH */}
+              <div className="bg-white rounded-3xl border border-[#eee2da] shadow-xs overflow-hidden">
+                <div className="p-4 border-b border-[#eee2da] bg-[#fbf6f0] flex justify-between items-center">
+                  <div>
+                    <b className="font-serif-title text-sm text-[#59453f] block">Phân Tích Biên Lợi Nhuận Từng Chiếc Bánh</b>
+                    <span className="text-[11px] text-[#9b8982]">Biết chính xác mỗi chiếc bánh bán ra thu về bao nhiêu tiền lời</span>
+                  </div>
+                  <button
+                    onClick={() => setCurrentTab('products')}
+                    className="text-xs font-bold text-[#c77f8e] hover:underline"
+                  >
+                    Chỉnh sửa giá vốn menu →
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#faf8f7] text-[#9b8982] font-bold uppercase text-[10px] border-b border-[#eee2da]">
+                      <tr>
+                        <th className="p-3 pl-4">Mẫu Bánh</th>
+                        <th className="p-3">Giá Bán</th>
+                        <th className="p-3">Giá Vốn (COGS)</th>
+                        <th className="p-3">Tiền Lời / Chiếc</th>
+                        <th className="p-3">Biên Lãi Gộp (%)</th>
+                        <th className="p-3 pr-4">Đánh Giá Kế Toán</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#eee2da]">
+                      {products.map((p) => {
+                        const cost = p.costPrice || Math.round(p.price * 0.38);
+                        const profit = p.price - cost;
+                        const margin = ((profit / p.price) * 100).toFixed(1);
+                        return (
+                          <tr key={p.id} className="hover:bg-gray-50/80 transition">
+                            <td className="p-3 pl-4 flex items-center gap-2.5">
+                              <img src={p.img} alt={p.name} className="w-8 h-8 rounded-lg object-cover border border-[#eee2da]" />
+                              <div>
+                                <b className="text-[#59453f] block">{p.name}</b>
+                                <span className="text-[10px] text-gray-400">{categories.find((c) => c.id === p.category)?.name}</span>
+                              </div>
+                            </td>
+                            <td className="p-3 font-bold text-[#59453f]">{formatMoney(p.price)}</td>
+                            <td className="p-3 font-bold text-amber-700">{formatMoney(cost)}</td>
+                            <td className="p-3 font-bold text-emerald-700">+{formatMoney(profit)}</td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                {margin}%
+                              </span>
+                            </td>
+                            <td className="p-3 pr-4 text-[11px]">
+                              {Number(margin) >= 65 ? (
+                                <span className="text-emerald-700 font-bold">⭐️ Siêu lợi nhuận (Đẩy mạnh)</span>
+                              ) : Number(margin) >= 55 ? (
+                                <span className="text-blue-700 font-bold">✓ Tỉ suất sinh lời tốt</span>
+                              ) : (
+                                <span className="text-amber-700 font-bold">⚠️ Chi phí cốt bánh hơi cao</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SỔ QUỸ CHI TIÊU VẬN HÀNH (EXPENSES LOG) */}
+              <div className="bg-white rounded-3xl border border-[#eee2da] shadow-xs overflow-hidden">
+                <div className="p-4 border-b border-[#eee2da] bg-[#fbf6f0] flex justify-between items-center">
+                  <div>
+                    <b className="font-serif-title text-sm text-[#59453f] block">Sổ Quỹ Chi Tiêu Vận Hành (Gần đây)</b>
+                    <span className="text-[11px] text-[#9b8982]">Tổng cộng: {formatMoney(finReport.totalExpenses)} đã chi</span>
+                  </div>
+                  <button
+                    onClick={() => setIsExpenseModalOpen(true)}
+                    className="text-xs font-bold text-[#c77f8e] hover:underline flex items-center gap-1"
+                  >
+                    <i className="ph ph-plus-circle"></i> Thêm khoản chi
+                  </button>
+                </div>
+
+                <div className="divide-y divide-[#eee2da]">
+                  {expenses.map((exp) => (
+                    <div key={exp.id} className="p-4 flex items-center justify-between text-xs hover:bg-gray-50/80">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[9px] uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
+                            {exp.category === 'ingredient' && 'Nguyên liệu'}
+                            {exp.category === 'packaging' && 'Hộp & Nơ'}
+                            {exp.category === 'utilities' && 'Điện / Nước'}
+                            {exp.category === 'salary' && 'Lương nhân sự'}
+                            {exp.category === 'marketing' && 'Quảng cáo'}
+                            {exp.category === 'rent' && 'Mặt bằng'}
+                            {exp.category === 'other' && 'Chi khác'}
+                          </span>
+                          <b className="text-sm text-[#59453f]">{exp.description}</b>
+                        </div>
+                        <span className="text-[11px] text-gray-400 block">Ngày ghi sổ: {exp.date}</span>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <b className="text-sm text-red-600 font-serif-title">-{formatMoney(exp.amount)}</b>
+                        <button
+                          onClick={() => handleDeleteExpense(exp.id, exp.description)}
+                          className="text-gray-400 hover:text-red-500 p-1"
+                          title="Xóa khoản chi"
+                        >
+                          <i className="ph ph-trash text-base"></i>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB MỚI: QUẢN LÝ KHO NGUYÊN VẬT LIỆU (INVENTORY) */}
+          {currentTab === 'inventory' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-5 rounded-3xl border border-[#eee2da] shadow-xs">
+                <div>
+                  <h3 className="font-serif-title font-bold text-lg text-[#59453f] flex items-center gap-2">
+                    <i className="ph-fill ph-archive-box text-2xl text-amber-600"></i> Quản Lý Kho & Tồn Kho Nguyên Liệu
+                  </h3>
+                  <p className="text-xs text-[#9b8982] mt-0.5">
+                    Tổng giá trị tồn kho hiện tại: <b className="text-[#59453f] font-bold">{formatMoney(finReport.inventoryValue)}</b>.
+                    Tự động cảnh báo khi nguyên liệu chạm ngưỡng tối thiểu.
+                  </p>
+                </div>
+                <button
+                  onClick={() => openIngredientModal()}
+                  className="px-5 py-2.5 rounded-full bg-[#59453f] hover:bg-[#c77f8e] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition"
+                >
+                  <i className="ph ph-plus-circle text-base"></i> Thêm Nguyên Liệu Mới
+                </button>
+              </div>
+
+              {/* Cảnh báo nguyên liệu sắp hết */}
+              {lowStockIngredients.length > 0 && (
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-3xl p-4 flex items-center gap-3 text-amber-900">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-200 text-amber-800 flex items-center justify-center text-2xl shrink-0">
+                    <i className="ph-fill ph-warning"></i>
+                  </div>
+                  <div className="flex-1">
+                    <b className="text-xs font-bold block">Cảnh báo: Có {lowStockIngredients.length} mặt hàng sắp hết trong kho!</b>
+                    <span className="text-[11px] text-amber-800">
+                      Gồm: {lowStockIngredients.map((i) => `${i.name} (còn ${i.stockQty} ${i.unit})`).join(', ')}. Hãy nhập thêm để không gián đoạn làm bánh.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Search & Filter */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="relative w-full sm:w-72">
+                  <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                  <input
+                    type="text"
+                    value={searchIngredient}
+                    onChange={(e) => setSearchIngredient(e.target.value)}
+                    placeholder="Tìm tên bột, bơ, kem, dâu..."
+                    className="w-full bg-white border border-[#eee2da] py-2 pl-9 pr-3 rounded-full text-xs font-bold outline-none focus:border-[#d993a1] text-[#59453f]"
+                  />
+                </div>
+                <span className="text-xs text-[#9b8982] font-medium hidden sm:inline">
+                  Tổng {ingredients.length} nguyên vật liệu
+                </span>
+              </div>
+
+              {/* Bảng Kho Nguyên Liệu */}
+              <div className="bg-white rounded-3xl border border-[#eee2da] shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#faf8f7] text-[#9b8982] font-bold uppercase text-[10px] border-b border-[#eee2da]">
+                      <tr>
+                        <th className="p-3 pl-4">Nguyên Vật Liệu</th>
+                        <th className="p-3">Nhà Cung Cấp</th>
+                        <th className="p-3">Đơn Vị</th>
+                        <th className="p-3">Giá Nhập</th>
+                        <th className="p-3">Tồn Kho Hiện Tại</th>
+                        <th className="p-3">Tổng Giá Trị Tồn</th>
+                        <th className="p-3">Trạng Thái Kho</th>
+                        <th className="p-3 pr-4 text-right">Thao Tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#eee2da]">
+                      {ingredients
+                        .filter((ing) =>
+                          searchIngredient.trim() === ''
+                            ? true
+                            : ing.name.toLowerCase().includes(searchIngredient.toLowerCase())
+                        )
+                        .map((ing) => {
+                          const isLow = ing.stockQty <= ing.minStockQty;
+                          return (
+                            <tr key={ing.id} className="hover:bg-gray-50/80 transition">
+                              <td className="p-3 pl-4 font-bold text-[#59453f]">
+                                <span className="block">{ing.name}</span>
+                                <span className="text-[10px] text-gray-400">{ing.id}</span>
+                              </td>
+                              <td className="p-3 text-[#9b8982]">{ing.supplier || 'Chợ đầu mối'}</td>
+                              <td className="p-3 font-semibold text-gray-600">{ing.unit}</td>
+                              <td className="p-3 font-bold text-[#59453f]">{formatMoney(ing.unitPrice)}</td>
+                              <td className="p-3 font-bold">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleQuickAdjustStock(ing, -1)}
+                                    className="w-5 h-5 rounded-md bg-gray-100 hover:bg-gray-200 text-xs flex items-center justify-center font-bold"
+                                    title="Xuất kho bớt 1"
+                                  >
+                                    -
+                                  </button>
+                                  <span className={`text-sm ${isLow ? 'text-red-600' : 'text-[#59453f]'}`}>
+                                    {ing.stockQty} {ing.unit}
+                                  </span>
+                                  <button
+                                    onClick={() => handleQuickAdjustStock(ing, 1)}
+                                    className="w-5 h-5 rounded-md bg-[#d993a1] text-white hover:bg-[#c77f8e] text-xs flex items-center justify-center font-bold"
+                                    title="Nhập thêm 1"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="p-3 font-bold text-[#59453f]">
+                                {formatMoney(ing.stockQty * ing.unitPrice)}
+                              </td>
+                              <td className="p-3">
+                                {isLow ? (
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700 animate-pulse">
+                                    ⚠️ Sắp hết (≤ {ing.minStockQty})
+                                  </span>
+                                ) : (
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">
+                                    ✓ Đầy đủ
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 pr-4 text-right space-x-2">
+                                <button
+                                  onClick={() => openIngredientModal(ing)}
+                                  className="text-[#c77f8e] hover:underline font-bold"
+                                >
+                                  Sửa
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteIngredient(ing.id, ing.name)}
+                                  className="text-red-500 hover:underline font-bold"
+                                >
+                                  Xóa
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 2: ĐƠN HÀNG ONLINE */}
           {currentTab === 'orders-online' && (
             <div className="space-y-5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                {/* Status Filter */}
                 <div className="flex flex-wrap gap-1 bg-white p-1 rounded-2xl border border-[#eee2da]">
                   {[
                     { id: 'all', label: 'Tất cả' },
@@ -903,9 +1420,7 @@ export default function AdminPage() {
                       key={tab.id}
                       onClick={() => setOnlineFilter(tab.id)}
                       className={`py-1.5 px-3 text-xs font-bold rounded-xl transition-all ${
-                        onlineFilter === tab.id
-                          ? 'bg-[#59453f] text-white'
-                          : 'text-[#9b8982] hover:bg-gray-50'
+                        onlineFilter === tab.id ? 'bg-[#59453f] text-white' : 'text-[#9b8982] hover:bg-gray-50'
                       }`}
                     >
                       {tab.label}
@@ -913,7 +1428,6 @@ export default function AdminPage() {
                   ))}
                 </div>
 
-                {/* Search */}
                 <div className="relative w-full sm:w-64">
                   <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
                   <input
@@ -926,7 +1440,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* List */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {orders
                   .filter((o) => {
@@ -1057,9 +1570,7 @@ export default function AdminPage() {
                       key={tab.id}
                       onClick={() => setEventFilter(tab.id)}
                       className={`py-1.5 px-3 text-xs font-bold rounded-xl transition-all ${
-                        eventFilter === tab.id
-                          ? 'bg-[#59453f] text-white'
-                          : 'text-[#9b8982] hover:bg-gray-50'
+                        eventFilter === tab.id ? 'bg-[#59453f] text-white' : 'text-[#9b8982] hover:bg-gray-50'
                       }`}
                     >
                       {tab.label}
@@ -1097,10 +1608,7 @@ export default function AdminPage() {
                   .map((o) => {
                     const badge = getStatusBadge(o.status);
                     return (
-                      <div
-                        key={o.id}
-                        className="bg-white rounded-3xl p-5 border border-[#eee2da] shadow-xs space-y-4"
-                      >
+                      <div key={o.id} className="bg-white rounded-3xl p-5 border border-[#eee2da] shadow-xs space-y-4">
                         <div className="flex justify-between items-start border-b border-[#eee2da] pb-3">
                           <div>
                             <div className="flex items-center gap-2">
@@ -1158,7 +1666,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* TAB 4: THỰC ĐƠN BÁNH */}
+          {/* TAB 4: THỰC ĐƠN BÁNH (CÓ THÊM GIÁ VỐN & TIỀN LỜI) */}
           {currentTab === 'products' && (
             <div className="space-y-5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -1205,51 +1713,60 @@ export default function AdminPage() {
                       p.name.toLowerCase().includes(searchProduct.toLowerCase());
                     return matchCat && matchQuery;
                   })
-                  .map((p) => (
-                    <div
-                      key={p.id}
-                      className="bg-white rounded-3xl overflow-hidden border border-[#eee2da] shadow-xs flex flex-col justify-between"
-                    >
-                      <div className="relative aspect-4/3 overflow-hidden bg-gray-100">
-                        <img src={p.img} alt={p.name} className="w-full h-full object-cover" />
-                        <span className="absolute top-2.5 left-2.5 bg-white/90 text-[10px] font-bold text-[#59453f] px-2.5 py-1 rounded-full uppercase">
-                          {categories.find((c) => c.id === p.category)?.name || p.category}
-                        </span>
-                        {!p.inStock && (
-                          <span className="absolute bottom-2.5 left-2.5 bg-red-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-                            Tạm hết
+                  .map((p) => {
+                    const cost = p.costPrice || Math.round(p.price * 0.38);
+                    const profit = p.price - cost;
+                    return (
+                      <div
+                        key={p.id}
+                        className="bg-white rounded-3xl overflow-hidden border border-[#eee2da] shadow-xs flex flex-col justify-between"
+                      >
+                        <div className="relative aspect-4/3 overflow-hidden bg-gray-100">
+                          <img src={p.img} alt={p.name} className="w-full h-full object-cover" />
+                          <span className="absolute top-2.5 left-2.5 bg-white/90 text-[10px] font-bold text-[#59453f] px-2.5 py-1 rounded-full uppercase">
+                            {categories.find((c) => c.id === p.category)?.name || p.category}
                           </span>
-                        )}
-                      </div>
-
-                      <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
-                        <div>
-                          <b className="font-serif-title font-bold text-sm text-[#59453f] block line-clamp-1">
-                            {p.name}
-                          </b>
-                          <span className="text-xs font-bold text-[#c77f8e] block mt-0.5">
-                            {formatMoney(p.price)}
-                          </span>
-                          <p className="text-[11px] text-[#9b8982] line-clamp-2 mt-1">{p.desc}</p>
+                          {!p.inStock && (
+                            <span className="absolute bottom-2.5 left-2.5 bg-red-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                              Tạm hết
+                            </span>
+                          )}
                         </div>
 
-                        <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                          <button
-                            onClick={() => openProductModal(p)}
-                            className="text-xs font-bold text-[#59453f] hover:text-[#c77f8e] flex items-center gap-1"
-                          >
-                            <i className="ph ph-note-pencil"></i> Sửa
-                          </button>
-                          <button
-                            onClick={() => handleDeleteProduct(p.id, p.name)}
-                            className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1"
-                          >
-                            <i className="ph ph-trash"></i> Xóa
-                          </button>
+                        <div className="p-4 space-y-2.5 flex-1 flex flex-col justify-between">
+                          <div>
+                            <b className="font-serif-title font-bold text-sm text-[#59453f] block line-clamp-1">
+                              {p.name}
+                            </b>
+                            <div className="flex items-center justify-between mt-1 text-xs">
+                              <span className="font-bold text-[#c77f8e]">Bán: {formatMoney(p.price)}</span>
+                              <span className="text-[11px] text-amber-700 font-semibold">Vốn: {formatMoney(cost)}</span>
+                            </div>
+                            <div className="bg-emerald-50 px-2 py-1 rounded-lg mt-1.5 flex justify-between text-[11px] text-emerald-800 font-bold">
+                              <span>Lời gộp:</span>
+                              <span>+{formatMoney(profit)} ({((profit / p.price) * 100).toFixed(0)}%)</span>
+                            </div>
+                            <p className="text-[11px] text-[#9b8982] line-clamp-2 mt-2">{p.desc}</p>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                            <button
+                              onClick={() => openProductModal(p)}
+                              className="text-xs font-bold text-[#59453f] hover:text-[#c77f8e] flex items-center gap-1"
+                            >
+                              <i className="ph ph-note-pencil"></i> Sửa
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProduct(p.id, p.name)}
+                              className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1"
+                            >
+                              <i className="ph ph-trash"></i> Xóa
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -1306,7 +1823,6 @@ export default function AdminPage() {
           {/* TAB 6: CẤU HÌNH WEBSITE & SAO LƯU */}
           {currentTab === 'settings' && (
             <div className="space-y-6 max-w-4xl">
-              {/* Info Form */}
               <form onSubmit={handleSaveSettings} className="bg-white rounded-3xl border border-[#eee2da] p-6 space-y-4 shadow-xs">
                 <h3 className="font-serif-title font-bold text-base text-[#59453f] border-b border-[#eee2da] pb-3 flex items-center gap-2">
                   <i className="ph ph-paint-brush text-[#c77f8e] text-lg"></i> Nhận diện thương hiệu & Thông tin tiệm
@@ -1358,24 +1874,6 @@ export default function AdminPage() {
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#eee2da] text-xs font-bold text-[#59453f] focus:outline-none focus:border-[#d993a1]"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Ảnh đại diện Logo (Avatar URL)</label>
-                    <input
-                      type="text"
-                      value={settingForm.avatar}
-                      onChange={(e) => setSettingForm({ ...settingForm, avatar: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#eee2da] text-xs font-medium text-[#59453f] focus:outline-none focus:border-[#d993a1]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Ảnh bìa Hero Banner URL</label>
-                    <input
-                      type="text"
-                      value={settingForm.hero}
-                      onChange={(e) => setSettingForm({ ...settingForm, hero: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#eee2da] text-xs font-medium text-[#59453f] focus:outline-none focus:border-[#d993a1]"
-                    />
-                  </div>
                 </div>
 
                 <div className="pt-2">
@@ -1399,7 +1897,7 @@ export default function AdminPage() {
                     onClick={exportBackup}
                     className="px-5 py-2.5 rounded-2xl bg-[#59453f] hover:bg-[#c77f8e] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition"
                   >
-                    <i className="ph ph-download-simple text-base"></i> Tải File Sao Lưu (JSON)
+                    <i className="ph ph-download-simple text-base"></i> Tải Toàn Bộ Sao Lưu (JSON)
                   </button>
 
                   <label className="px-5 py-2.5 rounded-2xl bg-white border border-[#eee2da] hover:border-[#c77f8e] text-[#59453f] text-xs font-bold flex items-center gap-2 cursor-pointer shadow-xs transition">
@@ -1419,6 +1917,194 @@ export default function AdminPage() {
           )}
         </div>
       </main>
+
+      {/* MODAL: THÊM KHOẢN CHI (EXPENSE) */}
+      {isExpenseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setIsExpenseModalOpen(false)} />
+          <div className="relative bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl z-10 space-y-4 animate-in fade-in zoom-in-95">
+            <h3 className="font-serif-title font-bold text-lg text-[#59453f] flex items-center gap-2">
+              <i className="ph-fill ph-receipt text-[#c77f8e]"></i> Ghi Nhận Khoản Chi Mới
+            </h3>
+
+            <form onSubmit={handleSaveExpense} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Hạng mục chi phí *</label>
+                <select
+                  value={expCategory}
+                  onChange={(e) => setExpCategory(e.target.value as ExpenseCategory)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-[#59453f]"
+                >
+                  <option value="ingredient">Nguyên vật liệu (Bột, bơ, sữa...)</option>
+                  <option value="packaging">Bao bì & Hộp bánh (Hộp mica, túi, nơ)</option>
+                  <option value="utilities">Điện, Nước, Gas lò nướng</option>
+                  <option value="salary">Lương phụ bếp & Thợ bánh</option>
+                  <option value="marketing">Quảng cáo TikTok, Facebook</option>
+                  <option value="rent">Tiền thuê mặt bằng</option>
+                  <option value="other">Chi phí khác</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Nội dung chi tiết *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ví dụ: Nhập 5 thùng bơ Anchor, trả tiền điện tháng này..."
+                  value={expDesc}
+                  onChange={(e) => setExpDesc(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-[#59453f]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Số tiền (VNĐ) *</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="500000"
+                    value={expAmount}
+                    onChange={(e) => setExpAmount(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-[#59453f]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Ngày chi</label>
+                  <input
+                    type="text"
+                    placeholder="Hôm nay"
+                    value={expDate}
+                    onChange={(e) => setExpDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-medium text-[#59453f]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsExpenseModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-full border border-gray-200 text-xs font-bold text-gray-500"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-full bg-[#59453f] hover:bg-[#c77f8e] text-white text-xs font-bold shadow-xs"
+                >
+                  Ghi Sổ Quỹ
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: THÊM / SỬA NGUYÊN LIỆU (INGREDIENT) */}
+      {isIngredientModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setIsIngredientModalOpen(false)} />
+          <div className="relative bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl z-10 space-y-4 animate-in fade-in zoom-in-95">
+            <h3 className="font-serif-title font-bold text-lg text-[#59453f] flex items-center gap-2">
+              <i className="ph-fill ph-archive-box text-amber-600"></i>
+              {editingIngredient ? 'Cập Nhật Nguyên Vật Liệu' : 'Thêm Nguyên Liệu Vào Kho'}
+            </h3>
+
+            <form onSubmit={handleSaveIngredient} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Tên nguyên liệu *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ví dụ: Bơ lạt Anchor, Whipping Cream Tatua..."
+                  value={ingName}
+                  onChange={(e) => setIngName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-[#59453f]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Đơn vị tính *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="kg, hộp, lít, quả, cái..."
+                    value={ingUnit}
+                    onChange={(e) => setIngUnit(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-[#59453f]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Đơn giá nhập (VNĐ) *</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="195000"
+                    value={ingUnitPrice}
+                    onChange={(e) => setIngUnitPrice(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-[#59453f]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Số lượng tồn kho *</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    required
+                    placeholder="10"
+                    value={ingStockQty}
+                    onChange={(e) => setIngStockQty(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-[#59453f]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Ngưỡng báo sắp hết</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    placeholder="5"
+                    value={ingMinStockQty}
+                    onChange={(e) => setIngMinStockQty(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-[#59453f]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Nhà cung cấp / Đại lý</label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: Cty Thực Phẩm Nhất Hương..."
+                  value={ingSupplier}
+                  onChange={(e) => setIngSupplier(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-medium text-[#59453f]"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsIngredientModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-full border border-gray-200 text-xs font-bold text-gray-500"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-full bg-[#59453f] hover:bg-[#c77f8e] text-white text-xs font-bold shadow-xs"
+                >
+                  Lưu Kho
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit Product Modal */}
       {isProductModalOpen && (
@@ -1444,7 +2130,7 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Giá bán (VNĐ) *</label>
+                  <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Giá bán ra (VNĐ) *</label>
                   <input
                     type="number"
                     required
@@ -1455,19 +2141,31 @@ export default function AdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Nhóm bánh *</label>
-                  <select
-                    value={prodFormCat}
-                    onChange={(e) => setProdFormCat(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-[#59453f] focus:outline-none focus:border-[#d993a1]"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-[11px] font-bold text-amber-700 uppercase mb-1">Giá vốn nguyên liệu (VNĐ) *</label>
+                  <input
+                    type="number"
+                    required
+                    value={prodFormCostPrice}
+                    onChange={(e) => setProdFormCostPrice(e.target.value)}
+                    placeholder="55000"
+                    className="w-full px-3 py-2 rounded-xl border border-amber-200 text-xs font-bold text-amber-800 bg-amber-50/50 focus:outline-none focus:border-amber-400"
+                  />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#9b8982] uppercase mb-1">Nhóm bánh *</label>
+                <select
+                  value={prodFormCat}
+                  onChange={(e) => setProdFormCat(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-[#59453f] focus:outline-none focus:border-[#d993a1]"
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
