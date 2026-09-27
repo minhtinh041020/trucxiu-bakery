@@ -1,26 +1,74 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --primary: #e6a8b7;
+  --primary-hover: #d495a4;
+  --bg-color: #faf8f7;
+  --text-main: #5c4d4d;
+  --text-light: #9c8e8e;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Admin Korean Bakery Palette */
+  --kb-cream: #fbf6f0;
+  --kb-paper: #fffdf9;
+  --kb-cocoa: #59453f;
+  --kb-pink: #d993a1;
+  --kb-soft: #f4dfe1;
+  --kb-rose: #c77f8e;
+  --kb-line: #eee2da;
+  --kb-dark: #3b2d2d;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-quicksand), 'Quicksand', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.font-serif-title,
+.font-display {
+  font-family: var(--font-playfair), 'Playfair Display', serif;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Card Hover Effect */
+.premium-card {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.premium-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(92, 77, 77, 0.08);
+}
+
+/* Print styling for receipts */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-receipt-area,
+  #printable-receipt-area * {
+    visibility: visible;
+  }
+  #printable-receipt-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    background: white !important;
+  }
+  .no-print {
+    display: none !important;
+  }
 }

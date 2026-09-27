@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trúc Xíu Bakery - Premium Korean Style</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Quicksand:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        :root {
+            --primary: #e6a8b7;
+            --primary-hover: #d495a4;
+            --bg-color: #faf8f7;
+            --text-main: #5c4d4d;
+            --text-light: #9c8e8e;
+        }
+
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .font-serif-title {
+            font-family: 'Playfair Display', serif;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Toast Notifications */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: white;
+            padding: 16px 24px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+            font-size: 14px;
+            border-left: 4px solid var(--primary);
+            animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards, fadeOut 0.3s ease 2.7s forwards;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+        }
+
+        /* Card Hover Effect */
+        .premium-card {
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .premium-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 20px 40px rgba(92, 77, 77, 0.08);
+        }
+
+        /* Floating Button Animation */
+        .zalo-float {
+            animation: bounceSoft 3s infinite;
+        }
+
+        @keyframes bounceSoft {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-8px);
+            }
+        }
+
+        /* ==================== QUẢN LÝ UI STATE ==================== */
+        #overlay {
+            transition: opacity 0.4s ease, visibility 0.4s;
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .overlay-active {
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+
+        #mobile-menu {
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: translateX(-100%);
+        }
+
+        #mobile-menu.is-open {
+            transform: translateX(0) !important;
+        }
+
+        #cart-container.is-open {
+            transform: translate(0, 0) !important;
+        }
+
+        #product-modal {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transform: translateY(100%);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @media (min-width: 768px) {
+            #product-modal {
+                transform: translate(-50%, -50%) scale(0.9);
+            }
+
+            #product-modal.is-open {
+                transform: translate(-50%, -50%) scale(1) !important;
+                opacity: 1;
+                visibility: visible;
+                pointer-events: auto;
+            }
+        }
+
+        @media (max-width: 767px) {
+            #product-modal.is-open {
+                transform: translateY(0) !important;
+                opacity: 1;
+                visibility: visible;
+                pointer-events: auto;
+            }
+        }
+    </style>
+    <style id="korean-boutique-redesign">
+        :root {
+            --kb-cream: #fbf6f0;
+            --kb-paper: #fffdf9;
+            --kb-cocoa: #59453f;
+            --kb-pink: #d993a1;
+            --kb-soft: #f4dfe1;
+            --kb-rose: #c77f8e;
+            --kb-line: #eee2da
+        }
+
+        html {
+            scroll-behavior: smooth
+        }
+
+        body {
+            background: var(--kb-cream) !important;
+            color: var(--kb-cocoa) !important;
+            font-family: 'Quicksand', sans-serif !important;
+            overflow-x: hidden
+        }
+
+        .font-serif,
+        .font-display {
+            font-family: 'Playfair Display', serif !important
+        }
+
+        header {
+            background: rgba(251, 246, 240, .9) !important;
+            backdrop-filter: blur(18px);
+            border-color: rgba(89, 69, 63, .08) !important
+        }
+
+        main {
+            background: transparent !important
+        }
+
+        /* Korean boutique palette */
+        .text-primary,
+        .text-main {
+            color: var(--kb-cocoa) !important
+        }
+
+        .text-light {
+            color: #9b8982 !important
+        }
+
+        .bg-primary {
+            background: var(--kb-pink) !important
+        }
+
+        .hover\:bg-primary-hover:hover {
+            background: #c77f8e !important
+        }
+
+        /* Hero */
+        section:first-of-type {
+            background: radial-gradient(circle at 85% 15%, #f4dfe1 0, transparent 25%), radial-gradient(circle at 8% 90%, #f0ddcf 0, transparent 24%), var(--kb-paper) !important;
+            border: 1px solid var(--kb-line) !important;
+            border-radius: 30px !important;
+            box-shadow: 0 18px 50px rgba(89, 69, 63, .08) !important;
+            overflow: hidden
+        }
+
+        section:first-of-type img {
+            border-radius: 24px
+        }
+
+        /* Cards */
+        #product-grid>div {
+            background: var(--kb-paper) !important;
+            border: 1px solid var(--kb-line) !important;
+            border-radius: 24px !important;
+            padding: 9px !important;
+            box-shadow: 0 7px 24px rgba(89, 69, 63, .045) !important;
+            transition: .3s ease !important
+        }
+
+        #product-grid>div:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 42px rgba(89, 69, 63, .10) !important
+        }
+
+        #product-grid img {
+            border-radius: 18px !important
+        }
+
+        /* Category pills */
+        #category-container button {
+            border: 1px solid var(--kb-line) !important;
+            background: #fff !important;
+            color: var(--kb-cocoa) !important;
+            border-radius: 999px !important;
+            white-space: nowrap !important
+        }
+
+        #category-container button:hover,
+        #category-container button.active {
+            background: var(--kb-cocoa) !important;
+            color: #fff !important;
+            border-color: var(--kb-cocoa) !important
+        }
+
+        /* Product add controls */
+        #product-grid button {
+            border-radius: 999px !important
+        }
+
+        /* Search */
+        input[type="text"],
+        input[type="tel"],
+        input[type="email"],
+        textarea {
+            border-color: var(--kb-line) !important
+        }
+
+        input:focus,
+        textarea:focus {
+            border-color: #d9a4ad !important;
+            box-shadow: 0 0 0 4px rgba(217, 147, 161, .10) !important;
+            outline: none !important
+        }
+
+        /* Modal/cart */
+        #product-modal,
+        #cart-container {
+            background: var(--kb-paper) !important;
+            border-color: var(--kb-line) !important
+        }
+
+        /* Footer */
+        footer {
+            background: var(--kb-cocoa) !important
+        }
+
+        /* Mobile */
+        @media(max-width:767px) {
+            section:first-of-type {
+                border-radius: 28px !important
+            }
+
+            #product-grid {
+                gap: 10px !important
+            }
+
+            #product-grid>div {
+                border-radius: 20px !important
+            }
+        }
+    </style>
+</head>
+
+<body class="relative">
+
+    <div id="toast-container"></div>
+
+    <a href="https://zalo.me/yourphone" target="_blank"
+        class="zalo-float fixed bottom-6 right-5 md:bottom-8 md:right-8 z-40 w-12 h-12 md:w-14 md:h-14 bg-white rounded-full flex items-center justify-center shadow-xl border border-gray-100 hover:scale-110 transition-transform cursor-pointer">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Icon_of_Zalo.svg/3840px-Icon_of_Zalo.svg.png"
+            alt="Zalo" class="w-8 h-8 md:w-10 md:h-10 object-contain">
+    </a>
+
+    <header
+        class="md:hidden sticky top-0 bg-[#faf8f7]/90 backdrop-blur-xl z-30 px-5 pt-6 pb-4 border-b border-[#e6a8b7]/20 shadow-sm">
+        <div class="flex justify-between items-center mb-4">
+            <button class="w-10 h-10 flex items-center justify-start text-[#5c4d4d] mobile-menu-toggle">
+                <i class="ph ph-list text-3xl"></i>
+            </button>
+            <div class="flex items-center gap-2 absolute left-1/2 -translate-x-1/2">
+                <img src="avatar.jpg" alt="Trúc Xíu Logo"
+                    class="w-8 h-8 rounded-full object-cover shadow-sm bg-white border border-[#e6a8b7]/20">
+                <h1 class="font-serif-title text-xl font-bold tracking-tight text-[#5c4d4d]">Trúc Xíu</h1>
+            </div>
+            <button
+                class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-[#e6a8b7] cart-toggle relative">
+                <i class="ph ph-shopping-bag text-xl"></i>
+                <span
+                    class="cart-count absolute top-0 right-0 w-4 h-4 bg-[#5c4d4d] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">0</span>
+            </button>
+        </div>
+        <div class="relative">
+            <i class="ph ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
+            <input type="text" id="mobileSearch" placeholder="Tìm hương vị bạn yêu..."
+                class="w-full bg-white py-3 pl-12 pr-4 rounded-2xl text-sm font-medium outline-none shadow-sm focus:ring-2 focus:ring-[#e6a8b7]/50 transition-all text-[#5c4d4d]">
+        </div>
+    </header>
+
+    <header
+        class="hidden md:flex fixed top-0 w-full z-30 px-8 py-4 bg-[#faf8f7]/80 backdrop-blur-xl border-b border-[#e6a8b7]/20">
+        <div class="max-w-7xl mx-auto w-full flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <img src="avatar.jpg" alt="Trúc Xíu Bakery Logo"
+                    class="w-10 h-10 rounded-full object-cover shadow-sm bg-white border border-[#e6a8b7]/20">
+                <h1 class="font-serif-title text-2xl font-bold text-[#5c4d4d]">Trúc Xíu Bakery</h1>
+            </div>
+
+            <div class="flex items-center gap-8">
+                <div class="relative w-72">
+                    <i class="ph ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="desktopSearch" placeholder="Tìm bánh..."
+                        class="w-full bg-white py-2.5 pl-11 pr-4 rounded-full text-sm font-medium outline-none shadow-sm focus:ring-2 focus:ring-[#e6a8b7]/50 transition-all text-[#5c4d4d]">
+                </div>
+                <nav class="flex gap-8 font-medium text-sm text-[#5c4d4d]">
+                    <a href="#" class="hover:text-[#e6a8b7] transition">Trang chủ</a>
+                    <a href="#menu" class="hover:text-[#e6a8b7] transition">Menu</a>
+                    <a href="#bulk-order" class="hover:text-[#e6a8b7] transition">Đặt tiệc</a>
+                </nav>
+                <button
+                    class="relative cart-toggle flex items-center gap-2 bg-white px-5 py-2.5 rounded-full shadow-sm hover:shadow-md transition">
+                    <i class="ph ph-shopping-bag text-xl text-[#e6a8b7]"></i>
+                    <span class="font-bold text-sm">Giỏ hàng (<span class="cart-count text-[#e6a8b7]">0</span>)</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-5 md:px-8 pt-6 md:pt-28 space-y-12 min-h-screen">
+
+        <section
+            class="rounded-[32px] overflow-hidden relative bg-white shadow-sm border border-[#e6a8b7]/20 flex flex-col md:flex-row items-center justify-between p-8 md:p-12 gap-8">
+            <div class="absolute -top-32 -left-32 w-64 h-64 bg-[#e6a8b7]/20 rounded-full blur-3xl"></div>
+            <div class="relative z-10 max-w-lg text-center md:text-left">
+                <span
+                    class="inline-block bg-[#e6a8b7]/10 text-[#e6a8b7] px-4 py-1.5 rounded-full text-xs font-bold mb-4 tracking-wider uppercase">Premium
+                    Handmade</span>
+                <h2 class="font-serif-title text-4xl md:text-5xl font-bold mb-4 leading-tight text-[#5c4d4d]">Mỗi chiếc
+                    bánh,<br><span class="text-[#e6a8b7] italic">một câu chuyện ngọt ngào</span></h2>
+                <p class="text-[#9c8e8e] mb-8 leading-relaxed">Được làm thủ công mỗi ngày với tình yêu và nguyên liệu tự
+                    nhiên chọn lọc. Mang phong cách Hàn Quốc tối giản, tinh tế.</p>
+                <button
+                    class="inline-block bg-[#5c4d4d] text-white px-8 py-4 rounded-full font-bold shadow-lg hover:bg-[#e6a8b7] transition-colors"
+                    onclick="document.getElementById('menu').scrollIntoView({behavior: 'smooth'})">Khám phá
+                    ngay</button>
+            </div>
+
+            <div
+                class="w-full md:w-auto h-auto md:h-full relative rounded-2xl overflow-hidden shadow-lg border-4 border-white aspect-[3/4] md:aspect-auto md:h-[450px]">
+                <img src="trucwork.png" alt="Trúc Xíu Bakery" class="w-full h-full object-cover" loading="lazy">
+            </div>
+
+        </section>
+
+
+        <section id="kb-discovery" class="max-w-7xl mx-auto px-4 md:px-8 pt-10">
+            <div class="text-center mb-7">
+                <div class="text-[10px] uppercase tracking-[.18em] font-bold text-[#c77f8e] mb-2">Find your sweet moment
+                </div>
+                <h2 class="font-serif text-3xl md:text-4xl font-semibold text-[#59453f]">Hôm nay bạn muốn bánh cho...?
+                </h2>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
+                <a href="#menu"
+                    class="bg-[#fffdf9] border border-[#eee2da] rounded-3xl p-5 md:p-6 hover:-translate-y-1 hover:shadow-xl transition">
+                    <div
+                        class="w-12 h-12 rounded-full bg-[#f4dfe1] text-[#c77f8e] flex items-center justify-center mb-4">
+                        <i class="ph ph-cake text-xl"></i></div><b class="text-sm md:text-base">Một ngày đặc biệt</b>
+                    <p class="text-[11px] text-[#9b8982] mt-1">Sinh nhật · kỷ niệm</p>
+                </a>
+                <a href="#menu"
+                    class="bg-[#fffdf9] border border-[#eee2da] rounded-3xl p-5 md:p-6 hover:-translate-y-1 hover:shadow-xl transition">
+                    <div
+                        class="w-12 h-12 rounded-full bg-[#f4dfe1] text-[#c77f8e] flex items-center justify-center mb-4">
+                        <i class="ph ph-heart text-xl"></i></div><b class="text-sm md:text-base">Tặng người thương</b>
+                    <p class="text-[11px] text-[#9b8982] mt-1">Một món quà thật xinh</p>
+                </a>
+                <a href="#menu"
+                    class="bg-[#fffdf9] border border-[#eee2da] rounded-3xl p-5 md:p-6 hover:-translate-y-1 hover:shadow-xl transition">
+                    <div
+                        class="w-12 h-12 rounded-full bg-[#f4dfe1] text-[#c77f8e] flex items-center justify-center mb-4">
+                        <i class="ph ph-coffee text-xl"></i></div><b class="text-sm md:text-base">Chiều nay ăn gì?</b>
+                    <p class="text-[11px] text-[#9b8982] mt-1">Một chút ngọt · một chút chill</p>
+                </a>
+                <a href="#bulk-order"
+                    class="bg-[#fffdf9] border border-[#eee2da] rounded-3xl p-5 md:p-6 hover:-translate-y-1 hover:shadow-xl transition">
+                    <div
+                        class="w-12 h-12 rounded-full bg-[#f4dfe1] text-[#c77f8e] flex items-center justify-center mb-4">
+                        <i class="ph ph-gift text-xl"></i></div><b class="text-sm md:text-base">Đặt số lượng lớn</b>
+                    <p class="text-[11px] text-[#9b8982] mt-1">Tiệc · quà tặng</p>
+                </a>
+            </div>
+        </section>
+        <section id="kb-story" class="max-w-7xl mx-auto px-4 md:px-8 py-4">
+            <div class="bg-[#59453f] text-white rounded-[30px] overflow-hidden grid md:grid-cols-4">
+                <div class="p-6 md:p-7 border-b md:border-b-0 md:border-r border-white/10"><i
+                        class="ph ph-flower-lotus text-3xl text-[#f1c8cd]"></i>
+                    <h3 class="font-serif text-xl mt-3">Làm thủ công</h3>
+                    <p class="text-xs text-white/55 mt-2 leading-5">Từng mẻ bánh được chăm chút mỗi ngày.</p>
+                </div>
+                <div class="p-6 md:p-7 border-b md:border-b-0 md:border-r border-white/10"><i
+                        class="ph ph-sparkle text-3xl text-[#f1c8cd]"></i>
+                    <h3 class="font-serif text-xl mt-3">Tươi mới</h3>
+                    <p class="text-xs text-white/55 mt-2 leading-5">Ưu tiên trải nghiệm ngon nhất khi thưởng thức.</p>
+                </div>
+                <div class="p-6 md:p-7 border-b md:border-b-0 md:border-r border-white/10"><i
+                        class="ph ph-heart text-3xl text-[#f1c8cd]"></i>
+                    <h3 class="font-serif text-xl mt-3">Vị ngọt dịu</h3>
+                    <p class="text-xs text-white/55 mt-2 leading-5">Nhẹ nhàng, thanh và dễ ăn.</p>
+                </div>
+                <div class="p-6 md:p-7"><i class="ph ph-gift text-3xl text-[#f1c8cd]"></i>
+                    <h3 class="font-serif text-xl mt-3">Gói thật xinh</h3>
+                    <p class="text-xs text-white/55 mt-2 leading-5">Sẵn sàng trở thành một món quà nhỏ.</p>
+                </div>
+            </div>
+        </section>
+        <section id="menu">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="font-serif-title text-2xl md:text-3xl font-bold">Thực đơn</h3>
+            </div>
+            <div class="flex gap-3 overflow-x-auto hide-scrollbar -mx-5 px-5 md:mx-0 md:px-0 pb-2"
+                id="category-container">
+            </div>
+        </section>
+
+        <section>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8" id="product-grid">
+            </div>
+        </section>
+
+        <section id="bulk-order"
+            class="bg-white rounded-[32px] p-8 md:p-12 shadow-sm border border-[#e6a8b7]/20 max-w-4xl mx-auto mt-16 relative overflow-hidden">
+            <div class="absolute -bottom-24 -right-24 w-64 h-64 bg-[#e6a8b7]/10 rounded-full blur-3xl"></div>
+            <div class="relative z-10">
+                <div class="text-center mb-8">
+                    <h2 class="font-serif-title text-3xl font-bold text-[#5c4d4d] mb-3">Đặt Bánh Sự Kiện & Số Lượng Lớn
+                    </h2>
+                    <p class="text-[#9c8e8e]">Bạn cần đặt bánh cho tiệc teabreak công ty, tiệc cưới hay thiết kế bánh
+                        theo yêu cầu riêng? Hãy để lại lời nhắn, tiệm sẽ tư vấn ngay.</p>
+                </div>
+                <div class="grid md:grid-cols-2 gap-4 mb-4">
+                    <input type="text" id="contact-name" placeholder="Tên của bạn"
+                        class="w-full px-5 py-3.5 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white focus:border-[#e6a8b7] outline-none text-sm font-medium transition-all">
+                    <input type="tel" id="contact-phone" placeholder="Số điện thoại"
+                        class="w-full px-5 py-3.5 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white focus:border-[#e6a8b7] outline-none text-sm font-medium transition-all">
+                </div>
+                <textarea id="contact-note" rows="3"
+                    placeholder="Mô tả yêu cầu (VD: Mình muốn đặt 50 phần macaron đóng hộp quà tặng cho sự kiện tuần sau...)"
+                    class="w-full px-5 py-3.5 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white focus:border-[#e6a8b7] outline-none text-sm font-medium transition-all mb-6 hide-scrollbar"></textarea>
+
+                <button id="btn-submit-contact"
+                    class="w-full md:w-auto md:px-12 bg-[#5c4d4d] hover:bg-[#e6a8b7] text-white py-4 rounded-2xl font-bold text-lg shadow-lg transition-colors mx-auto flex items-center justify-center gap-2">
+                    <i class="ph ph-paper-plane-tilt text-xl"></i> Gửi Yêu Cầu
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-white border-t border-[#e6a8b7]/20 pt-16 mt-16">
+        <div class="max-w-7xl mx-auto px-6 md:px-8 grid md:grid-cols-12 gap-10 md:gap-8 pb-16">
+            <div class="md:col-span-5">
+                <div class="flex items-center gap-3 mb-6">
+                    <img src="avatar.jpg" alt="Trúc Xíu Bakery Logo"
+                        class="w-10 h-10 rounded-full object-cover shadow-sm bg-white border border-[#e6a8b7]/20">
+                    <h2 class="font-serif-title text-2xl font-bold text-[#5c4d4d]">Trúc Xíu Bakery</h2>
+                </div>
+                <p class="text-[#9c8e8e] leading-relaxed max-w-sm mb-8">
+                    Tiệm bánh thủ công mang đậm phong cách Hàn Quốc. Chúng tôi tin rằng sự ngọt ngào là món quà tuyệt
+                    vời nhất để kết nối yêu thương.
+                </p>
+                <div class="flex gap-4">
+                    <a href="#"
+                        class="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-500 hover:bg-[#e6a8b7] hover:text-white transition-colors"><i
+                            class="ph-fill ph-instagram-logo text-lg"></i></a>
+                    <a href="#"
+                        class="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-500 hover:bg-[#e6a8b7] hover:text-white transition-colors"><i
+                            class="ph-fill ph-facebook-logo text-lg"></i></a>
+                    <a href="#"
+                        class="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-500 hover:bg-[#e6a8b7] hover:text-white transition-colors"><i
+                            class="ph-fill ph-tiktok-logo text-lg"></i></a>
+                </div>
+            </div>
+            <div class="md:col-span-3">
+                <h3 class="font-bold text-[#5c4d4d] text-lg mb-6">Liên hệ với tiệm</h3>
+                <div class="space-y-4 text-[#9c8e8e] text-sm font-medium">
+                    <p class="flex items-center gap-3"><i class="ph-fill ph-phone text-[#e6a8b7] text-lg"></i> 0909 999
+                        999</p>
+                    <p class="flex items-center gap-3"><i
+                            class="ph-fill ph-chat-circle-dots text-[#e6a8b7] text-lg"></i> Zalo: Trúc Xíu Bakery</p>
+                    <p class="flex items-start gap-3"><i class="ph-fill ph-map-pin text-[#e6a8b7] text-lg mt-0.5"></i>
+                        123 Đường Bánh Ngọt,<br>Quận 1, TP.HCM</p>
+                </div>
+            </div>
+            <div class="md:col-span-4">
+                <h3 class="font-bold text-[#5c4d4d] text-lg mb-6">Nhận ưu đãi ngọt ngào</h3>
+                <p class="text-[#9c8e8e] mb-4 text-sm font-medium">Để lại email để nhận mã giảm giá 10% cho chiếc bánh
+                    đầu tiên của bạn.</p>
+                <div
+                    class="flex border border-gray-200 rounded-xl overflow-hidden focus-within:border-[#e6a8b7] transition-colors bg-gray-50">
+                    <input type="email" placeholder="Email của bạn..."
+                        class="px-4 py-3 w-full outline-none bg-transparent text-sm text-[#5c4d4d]">
+                    <button
+                        class="bg-[#e6a8b7] text-white px-5 font-bold hover:bg-[#d495a4] transition-colors text-sm">Gửi</button>
+                </div>
+            </div>
+        </div>
+        <div class="border-t border-gray-100 py-6 text-center">
+            <p class="text-[#9c8e8e] text-sm font-medium">&copy; 2026 Trúc Xíu Bakery. All rights reserved.</p>
+            <a href="admin.html" class="inline-flex items-center gap-1.5 text-xs text-[#9c8e8e] hover:text-[#e6a8b7] mt-2 transition-colors font-medium">
+                <i class="ph ph-gear-six"></i> Quản trị tiệm bánh
+            </a>
+        </div>
+    </footer>
+
+    <div id="overlay" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"></div>
+
+    <div id="mobile-menu" class="fixed inset-y-0 left-0 w-[280px] bg-white z-50 flex flex-col">
+        <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-[#faf8f7]">
+            <div class="flex items-center gap-2">
+                <img src="avatar.jpg" alt="Trúc Xíu Logo"
+                    class="w-8 h-8 rounded-full object-cover shadow-sm bg-white border border-[#e6a8b7]/20">
+                <h2 class="font-serif-title text-lg font-bold text-[#5c4d4d]">Menu</h2>
+            </div>
+            <button
+                class="w-8 h-8 bg-white rounded-full flex items-center justify-center text-gray-500 shadow-sm mobile-menu-toggle">
+                <i class="ph ph-x text-lg"></i>
+            </button>
+        </div>
+        <nav class="flex flex-col p-4 space-y-2">
+            <button
+                onclick="document.getElementById('menu').scrollIntoView({behavior: 'smooth'}); toggleUI('mobile-menu');"
+                class="text-left px-4 py-3 text-[#5c4d4d] font-semibold rounded-xl hover:bg-[#faf8f7] transition">Xem
+                Thực Đơn</button>
+            <button
+                onclick="document.getElementById('bulk-order').scrollIntoView({behavior: 'smooth'}); toggleUI('mobile-menu');"
+                class="text-left px-4 py-3 text-[#5c4d4d] font-semibold rounded-xl hover:bg-[#faf8f7] transition">Đặt
+                Bánh Sự Kiện</button>
+            <a href="https://zalo.me/yourphone" target="_blank"
+                class="px-4 py-3 text-[#5c4d4d] font-semibold rounded-xl hover:bg-[#faf8f7] transition">Nhắn tin qua
+                Zalo</a>
+            <div class="h-px bg-gray-100 my-2"></div>
+            <p class="px-4 py-2 text-xs text-gray-400">Giờ mở cửa: 08:00 - 22:00</p>
+        </nav>
+    </div>
+
+    <div id="product-modal"
+        class="fixed z-50 bg-white flex flex-col bottom-0 left-0 w-full h-[85vh] rounded-t-[32px] md:w-[800px] md:h-[500px] md:rounded-[32px] md:flex-row shadow-2xl overflow-hidden md:top-1/2 md:left-1/2">
+    </div>
+
+    <div id="cart-container"
+        class="fixed z-50 bg-white shadow-2xl flex flex-col bottom-0 left-0 w-full h-[90vh] rounded-t-[32px] translate-y-full md:top-0 md:right-0 md:left-auto md:w-[420px] md:h-full md:rounded-none md:translate-y-0 md:translate-x-full transition-transform duration-500 cubic-bezier(0.16, 1, 0.3, 1)">
+
+        <div class="flex justify-between items-center p-6 border-b border-gray-100">
+            <h2 class="font-serif-title text-2xl font-bold text-[#5c4d4d]">Giỏ Hàng</h2>
+            <button
+                class="w-10 h-10 bg-gray-50 hover:bg-gray-100 rounded-full flex items-center justify-center text-gray-500 cart-toggle transition-colors">
+                <i class="ph ph-x text-lg font-bold"></i>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-4 hide-scrollbar" id="cart-items">
+        </div>
+
+        <div
+            class="p-6 bg-white border-t border-gray-100 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] rounded-t-[32px] md:rounded-none">
+            <div id="checkout-form" class="hidden space-y-3 mb-6">
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="text" id="cust-name" placeholder="Tên người nhận"
+                        class="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white focus:border-[#e6a8b7] outline-none text-sm font-medium transition-all"
+                        required>
+                    <input type="tel" id="cust-phone" placeholder="Số điện thoại"
+                        class="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white focus:border-[#e6a8b7] outline-none text-sm font-medium transition-all"
+                        required>
+                </div>
+                <textarea id="cust-note" rows="2"
+                    placeholder="Ghi chú (VD: Viết chữ Happy Birthday, dặn dò giờ giao hàng...)"
+                    class="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white focus:border-[#e6a8b7] outline-none text-sm font-medium transition-all hide-scrollbar"></textarea>
+            </div>
+
+            <div class="flex justify-between text-lg font-bold text-[#5c4d4d] mb-5">
+                <span>Tổng cộng</span>
+                <span id="cart-total" class="text-[#e6a8b7] text-2xl">0đ</span>
+            </div>
+
+            <button id="btn-checkout"
+                class="w-full bg-[#5c4d4d] hover:bg-[#e6a8b7] text-white py-4 rounded-2xl font-bold text-lg shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
+                Hoàn tất đặt bánh
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const defaultCategories = [
+            { id: 'cake', name: 'Bánh Sinh Nhật' },
+            { id: 'pastry', name: 'Bánh Lạnh' },
+            { id: 'gift', name: 'Set Quà Tặng' }
+        ];
+
+        const defaultProducts = [
+            { id: 1, name: "Strawberry Shortcake", price: 145000, category: "cake", desc: "Cốt bánh vanilla bông xốp, dâu tây Đà Lạt tươi cắt lát xen kẽ cùng lớp kem tươi whipping cream đánh bông mềm mịn. Vị ngọt thanh, ít béo.", img: "https://images.unsplash.com/photo-1559620192-032c4bc4674e?auto=format&fit=crop&w=600&q=80" },
+            { id: 2, name: "Burnt Cheesecake", price: 165000, category: "pastry", desc: "Cheesecake cháy mặt kiểu Basque. Bên ngoài hơi xém thơm mùi caramel, bên trong nhân phô mai đặc sánh tan chảy. Ăn kèm sốt dâu rừng tự nấu.", img: "https://images.unsplash.com/photo-1464306076886-da185f6a9d05?auto=format&fit=crop&w=600&q=80" },
+            { id: 3, name: "Tiramisu Classic", price: 150000, category: "pastry", desc: "Bánh ladyfinger ngâm đẫm cà phê espresso nguyên chất, xen kẽ kem mascarpone béo ngậy và bột cacao đậm vị.", img: "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=600&q=80" },
+            { id: 4, name: "Set Macaron Paris", price: 220000, category: "gift", desc: "Hộp 6 bánh macaron thủ công vỏ giòn tan, nhân ganache các vị: matcha, chanh dây, dâu tây, chocolate đen, earl grey, vanilla.", img: "https://images.unsplash.com/photo-1569864358642-9d1684040f43?auto=format&fit=crop&w=600&q=80" }
+        ];
+
+        function loadStoreData() {
+            try {
+                let savedCats = localStorage.getItem('TX_CATEGORIES');
+                if (!savedCats) {
+                    localStorage.setItem('TX_CATEGORIES', JSON.stringify(defaultCategories));
+                    savedCats = JSON.stringify(defaultCategories);
+                }
+                const parsedCats = JSON.parse(savedCats);
+                categories = [{ id: 'all', name: 'Tất cả' }, ...parsedCats];
+
+                let savedProds = localStorage.getItem('TX_PRODUCTS');
+                if (!savedProds) {
+                    localStorage.setItem('TX_PRODUCTS', JSON.stringify(defaultProducts));
+                    savedProds = JSON.stringify(defaultProducts);
+                }
+                products = JSON.parse(savedProds);
+
+                applyStoreSettings();
+            } catch (err) {
+                console.error("Lỗi nạp dữ liệu tiệm:", err);
+                categories = [{ id: 'all', name: 'Tất cả' }, ...defaultCategories];
+                products = defaultProducts;
+            }
+        }
+
+        function applyStoreSettings() {
+            try {
+                const savedSettings = localStorage.getItem('TX_SETTINGS');
+                if (savedSettings) {
+                    const settings = JSON.parse(savedSettings);
+                    if (settings.phone) {
+                        document.querySelectorAll('a[href^="https://zalo.me/"]').forEach(a => {
+                            if (settings.zalo) a.href = settings.zalo;
+                        });
+                    }
+                }
+            } catch(e) {}
+        }
+
+        let categories = [{ id: 'all', name: 'Tất cả' }, ...defaultCategories];
+        let products = defaultProducts;
+        loadStoreData();
+
+        const state = { cart: [], currentCategory: 'all', searchQuery: '' };
+        const formatPrice = (price) => new Intl.NumberFormat('vi-VN').format(price) + 'đ';
+
+        const renderCategories = () => {
+            document.getElementById('category-container').innerHTML = categories.map(cat => {
+                const isActive = state.currentCategory === cat.id;
+                const activeClass = isActive ? "bg-[#5c4d4d] text-white border-[#5c4d4d]" : "bg-white text-[#9c8e8e] border-gray-100 hover:border-[#e6a8b7]";
+                return `<button data-cat="${cat.id}" class="cat-btn px-6 py-2.5 rounded-full text-sm font-semibold border transition-all whitespace-nowrap ${activeClass}">${cat.name}</button>`;
+            }).join('');
+        };
+
+        const renderProducts = () => {
+            const container = document.getElementById('product-grid');
+            const filtered = products.filter(p =>
+                (state.currentCategory === 'all' || p.category === state.currentCategory) &&
+                p.name.toLowerCase().includes(state.searchQuery.toLowerCase())
+            );
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-2 md:col-span-4 flex flex-col items-center justify-center py-20 opacity-70">
+                        <i class="ph ph-cake text-6xl text-[#e6a8b7] mb-4"></i>
+                        <p class="font-bold text-[#9c8e8e] text-lg">Không tìm thấy hương vị này</p>
+                        <p class="text-sm text-gray-400">Hãy thử một từ khóa khác nhé!</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(p => {
+                const cartItem = state.cart.find(i => i.id === p.id);
+                const qty = cartItem ? cartItem.qty : 0;
+
+                let actionHTML = '';
+                if (qty > 0) {
+                    actionHTML = `
+                        <div class="flex items-center gap-1.5 md:gap-2 bg-[#e6a8b7]/10 p-1 rounded-full border border-[#e6a8b7]/30 shadow-sm z-10">
+                            <button data-action="minus" data-id="${p.id}" class="qty-btn w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full bg-white text-[#5c4d4d] hover:bg-[#e6a8b7] hover:text-white transition-colors font-bold text-sm md:text-base">-</button>
+                            <span class="text-xs md:text-sm font-bold text-[#5c4d4d] w-3 md:w-4 text-center">${qty}</span>
+                            <button data-action="plus" data-id="${p.id}" class="qty-btn w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full bg-[#e6a8b7] text-white hover:bg-[#d495a4] transition-colors font-bold text-sm md:text-base">+</button>
+                        </div>
+                    `;
+                } else {
+                    actionHTML = `
+                        <button data-id="${p.id}" class="grid-add-btn w-8 h-8 md:w-9 md:h-9 rounded-full bg-gray-50 flex items-center justify-center text-[#9c8e8e] hover:bg-[#e6a8b7] hover:text-white transition-colors shadow-sm border border-gray-100 z-10">
+                            <i class="ph ph-plus font-bold text-base md:text-lg"></i>
+                        </button>
+                    `;
+                }
+
+                return `
+                <div data-id="${p.id}" class="product-card premium-card bg-white rounded-3xl p-3 shadow-sm border border-gray-50 flex flex-col h-full cursor-pointer relative group">
+                    <div class="overflow-hidden rounded-2xl mb-4 relative h-36 md:h-48">
+                        <img src="${p.img}" alt="${p.name}" loading="lazy" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
+                        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300"></div>
+                    </div>
+                    <div class="px-2 flex flex-col flex-1">
+                        <h3 class="font-bold text-[#5c4d4d] text-[15px] md:text-lg leading-tight mb-2 flex-1 group-hover:text-[#e6a8b7] transition-colors">${p.name}</h3>
+                        <div class="flex justify-between items-center mt-auto h-10">
+                            <span class="font-bold text-[#5c4d4d] text-sm md:text-lg">${formatPrice(p.price)}</span>
+                            ${actionHTML}
+                        </div>
+                    </div>
+                </div>
+            `}).join('');
+        };
+
+        const renderModal = (product) => {
+            const modal = document.getElementById('product-modal');
+            modal.innerHTML = `
+                <button class="modal-close absolute top-4 right-4 z-10 w-10 h-10 bg-white/80 backdrop-blur rounded-full flex items-center justify-center text-gray-500 hover:text-red-500 shadow-sm transition-colors">
+                    <i class="ph ph-x text-xl font-bold"></i>
+                </button>
+                <div class="w-full md:w-1/2 h-[250px] md:h-full">
+                    <img src="${product.img}" class="w-full h-full object-cover">
+                </div>
+                <div class="w-full md:w-1/2 p-6 md:p-10 flex flex-col">
+                    <span class="text-[#e6a8b7] font-bold text-xs uppercase tracking-wider mb-2">Trúc Xíu Signature</span>
+                    <h2 class="font-serif-title text-2xl md:text-4xl font-bold text-[#5c4d4d] mb-4">${product.name}</h2>
+                    <p class="text-2xl font-bold text-[#5c4d4d] mb-6">${formatPrice(product.price)}</p>
+                    <div class="w-12 h-1 bg-[#e6a8b7]/30 mb-6 rounded-full"></div>
+                    <p class="text-[#9c8e8e] leading-relaxed mb-8 flex-1 text-sm md:text-base overflow-y-auto hide-scrollbar">${product.desc}</p>
+                    
+                    <button data-id="${product.id}" class="modal-add-cart w-full bg-[#5c4d4d] hover:bg-[#e6a8b7] text-white py-4 rounded-2xl font-bold text-lg shadow-lg transition-colors flex justify-center items-center gap-2 mt-auto">
+                        <i class="ph ph-shopping-bag text-xl"></i> Thêm vào giỏ
+                    </button>
+                </div>
+            `;
+        };
+
+        const updateCartUI = () => {
+            const cartContainer = document.getElementById('cart-items');
+            const checkoutForm = document.getElementById('checkout-form');
+            const btnCheckout = document.getElementById('btn-checkout');
+            const totalElements = document.querySelectorAll('.cart-count');
+
+            const totalQty = state.cart.reduce((sum, item) => sum + item.qty, 0);
+            const totalPrice = state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+
+            totalElements.forEach(el => el.textContent = totalQty);
+            document.getElementById('cart-total').textContent = formatPrice(totalPrice);
+
+            if (state.cart.length === 0) {
+                cartContainer.innerHTML = `<div class="h-full flex flex-col items-center justify-center py-10 opacity-60"><i class="ph ph-shopping-bag text-5xl text-gray-300 mb-3"></i><p class="font-medium text-gray-500">Giỏ hàng đang trống</p></div>`;
+                checkoutForm.classList.add('hidden');
+                btnCheckout.disabled = true;
+            } else {
+                checkoutForm.classList.remove('hidden');
+                btnCheckout.disabled = false;
+                cartContainer.innerHTML = state.cart.map(item => `
+                    <div class="flex gap-4 items-center bg-white p-3 rounded-2xl shadow-sm border border-gray-50">
+                        <img src="${item.img}" class="w-20 h-20 rounded-xl object-cover">
+                        <div class="flex-1">
+                            <h4 class="font-bold text-[#5c4d4d] text-sm mb-1 line-clamp-1">${item.name}</h4>
+                            <p class="text-sm font-bold text-[#9c8e8e] mb-3">${formatPrice(item.price)}</p>
+                            <div class="flex items-center gap-3 bg-gray-50 px-3 py-1.5 rounded-xl w-fit border border-gray-100">
+                                <button data-action="minus" data-id="${item.id}" class="qty-btn text-gray-400 hover:text-[#5c4d4d] font-bold">-</button>
+                                <span class="text-xs font-bold w-4 text-center text-[#5c4d4d]">${item.qty}</span>
+                                <button data-action="plus" data-id="${item.id}" class="qty-btn text-gray-400 hover:text-[#5c4d4d] font-bold">+</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        };
+
+        const showToast = (msg) => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `<i class="ph-fill ph-check-circle text-[#e6a8b7] text-xl"></i> <span>${msg}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        };
+
+        const toggleUI = (elementId) => {
+            const el = document.getElementById(elementId);
+            const overlay = document.getElementById('overlay');
+            const isOpen = el.classList.contains('is-open');
+
+            if (!isOpen) {
+                document.getElementById('cart-container').classList.remove('is-open');
+                document.getElementById('product-modal').classList.remove('is-open');
+                document.getElementById('mobile-menu').classList.remove('is-open');
+
+                el.classList.add('is-open');
+                overlay.classList.add('overlay-active');
+                document.body.style.overflow = 'hidden';
+            } else {
+                el.classList.remove('is-open');
+                overlay.classList.remove('overlay-active');
+                document.body.style.overflow = '';
+            }
+        };
+
+        document.addEventListener('click', (e) => {
+            const catBtn = e.target.closest('.cat-btn');
+            if (catBtn) {
+                state.currentCategory = catBtn.dataset.cat;
+                renderCategories();
+                renderProducts();
+            }
+
+            const gridAddBtn = e.target.closest('.grid-add-btn');
+            if (gridAddBtn) {
+                e.stopPropagation();
+                const id = parseInt(gridAddBtn.dataset.id);
+                const product = products.find(p => p.id === id);
+                state.cart.push({ ...product, qty: 1 });
+                updateCartUI();
+                renderProducts();
+                showToast(`Đã thêm ${product.name}`);
+                return;
+            }
+
+            const qtyBtn = e.target.closest('.qty-btn');
+            if (qtyBtn) {
+                e.stopPropagation();
+                const id = parseInt(qtyBtn.dataset.id);
+                const action = qtyBtn.dataset.action;
+                const itemIndex = state.cart.findIndex(i => i.id === id);
+
+                if (itemIndex > -1) {
+                    if (action === 'plus') state.cart[itemIndex].qty++;
+                    if (action === 'minus') state.cart[itemIndex].qty--;
+                    if (state.cart[itemIndex].qty <= 0) state.cart.splice(itemIndex, 1);
+                    updateCartUI();
+                    renderProducts();
+                }
+                return;
+            }
+
+            const productCard = e.target.closest('.product-card');
+            if (productCard) {
+                const product = products.find(p => p.id === parseInt(productCard.dataset.id));
+                renderModal(product);
+                toggleUI('product-modal');
+            }
+
+            const modalAddBtn = e.target.closest('.modal-add-cart');
+            if (modalAddBtn) {
+                const id = parseInt(modalAddBtn.dataset.id);
+                const product = products.find(p => p.id === id);
+                const exist = state.cart.find(i => i.id === id);
+                if (exist) exist.qty++; else state.cart.push({ ...product, qty: 1 });
+                updateCartUI();
+                renderProducts();
+                toggleUI('product-modal');
+                showToast(`Đã thêm ${product.name}`);
+            }
+
+            if (e.target.closest('.modal-close')) toggleUI('product-modal');
+            if (e.target.closest('.cart-toggle')) toggleUI('cart-container');
+            if (e.target.closest('.mobile-menu-toggle')) toggleUI('mobile-menu');
+
+            if (e.target.id === 'overlay') {
+                document.getElementById('cart-container').classList.remove('is-open');
+                document.getElementById('product-modal').classList.remove('is-open');
+                document.getElementById('mobile-menu').classList.remove('is-open');
+                document.getElementById('overlay').classList.remove('overlay-active');
+                document.body.style.overflow = '';
+            }
+        });
+
+        const handleSearch = (e) => {
+            state.searchQuery = e.target.value;
+            renderProducts();
+        };
+        document.getElementById('desktopSearch')?.addEventListener('input', handleSearch);
+        document.getElementById('mobileSearch')?.addEventListener('input', handleSearch);
+
+        document.getElementById('btn-submit-contact')?.addEventListener('click', (e) => {
+            const btn = e.currentTarget;
+            const name = document.getElementById('contact-name').value.trim();
+            const phone = document.getElementById('contact-phone').value.trim();
+            const note = document.getElementById('contact-note').value.trim();
+
+            if (!name || !phone || !note) {
+                alert("Vui lòng nhập đầy đủ Tên, Số điện thoại và Yêu cầu để tiệm tư vấn tốt nhất nhé!");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="ph ph-spinner animate-spin text-xl"></i> Đang gửi...`;
+
+            setTimeout(() => {
+                try {
+                    const existingOrders = JSON.parse(localStorage.getItem('TX_ORDERS')) || [];
+                    const newEventOrder = {
+                        id: "TX-EV-" + Math.floor(10 + Math.random() * 90),
+                        type: "bulk",
+                        customer: { name, phone },
+                        items: [
+                            { name: "Yêu cầu đặt bánh sự kiện / số lượng lớn", qty: 1, price: 0 }
+                        ],
+                        total: 0,
+                        note: note,
+                        status: "pending",
+                        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' Hôm nay'
+                    };
+                    existingOrders.unshift(newEventOrder);
+                    localStorage.setItem('TX_ORDERS', JSON.stringify(existingOrders));
+                } catch(err) {
+                    console.error("Lỗi lưu đơn sự kiện:", err);
+                }
+
+                showToast(`Cảm ơn ${name}! Tiệm sẽ gọi lại cho bạn sớm nhất.`);
+                document.getElementById('contact-name').value = '';
+                document.getElementById('contact-phone').value = '';
+                document.getElementById('contact-note').value = '';
+                btn.innerHTML = `<i class="ph ph-paper-plane-tilt text-xl"></i> Gửi Yêu Cầu`;
+                btn.disabled = false;
+            }, 1000);
+        });
+
+        const btnCheckout = document.getElementById('btn-checkout');
+        btnCheckout.addEventListener('click', () => {
+            const name = document.getElementById('cust-name').value.trim();
+            const phone = document.getElementById('cust-phone').value.trim();
+            const note = document.getElementById('cust-note').value.trim();
+
+            if (!name || !phone) {
+                alert("Vui lòng nhập đầy đủ tên và số điện thoại nhé!");
+                return;
+            }
+
+            btnCheckout.disabled = true;
+            btnCheckout.innerHTML = `<i class="ph ph-spinner animate-spin text-xl"></i> Đang xử lý...`;
+
+            setTimeout(() => {
+                try {
+                    const existingOrders = JSON.parse(localStorage.getItem('TX_ORDERS')) || [];
+                    const orderTotal = state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+                    const newOrder = {
+                        id: "TX-" + Math.floor(1000 + Math.random() * 9000),
+                        type: "regular",
+                        customer: { name, phone },
+                        items: state.cart.map(item => ({
+                            name: item.name,
+                            qty: item.qty,
+                            price: item.price,
+                            img: item.img
+                        })),
+                        total: orderTotal,
+                        note: note || "Không có ghi chú dặn dò",
+                        status: "pending",
+                        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' Hôm nay'
+                    };
+                    existingOrders.unshift(newOrder);
+                    localStorage.setItem('TX_ORDERS', JSON.stringify(existingOrders));
+                } catch(err) {
+                    console.error("Lỗi lưu đơn hàng:", err);
+                }
+
+                showToast(`Cảm ơn ${name}! Đơn hàng đã được xác nhận.`);
+
+                state.cart = [];
+                updateCartUI();
+                renderProducts();
+
+                document.getElementById('cart-container').classList.remove('is-open');
+                document.getElementById('overlay').classList.remove('overlay-active');
+                document.body.style.overflow = '';
+
+                document.getElementById('cust-name').value = '';
+                document.getElementById('cust-phone').value = '';
+                document.getElementById('cust-note').value = '';
+                btnCheckout.innerHTML = `Hoàn tất đặt bánh`;
+                btnCheckout.disabled = false;
+            }, 1000);
+        });
+
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'TX_PRODUCTS' || e.key === 'TX_CATEGORIES' || e.key === 'TX_SETTINGS') {
+                loadStoreData();
+                renderCategories();
+                renderProducts();
+            }
+        });
+
+        renderCategories();
+        renderProducts();
+        updateCartUI();
+    </script>
+</body>
+
+</html>
